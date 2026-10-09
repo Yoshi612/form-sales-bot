@@ -49,14 +49,12 @@ export async function extractFields(frame) {
       return "";
     };
     // 「必須」バッジが入力欄と別のセルにある表（あそう自動車商会型）も必須とみなす
+    // 必須の印が見た目だけ（CSSのバッジ等）の場合に備えて、よく使われる目印も見る
     const rowSaysRequired = (el) => {
+      if ([...el.attributes].some((a) => /required|must|hissu/i.test(a.name) && a.value !== "false")) return true;
+      if (/(^|[\s_-])(required|is-required|must|hissu|req)([\s_-]|$)/i.test(el.className)) return true;
       const tr = el.closest("tr");
-      if (tr) return /必須/.test(tr.innerText);
-      let anc = el.parentElement;
-      for (let i = 0; i < 5 && anc && anc !== root; i++) {
-        if (anc.querySelectorAll("input:not([type=hidden]), select, textarea").length > 1) break;
-        anc = anc.parentElement;
-      }
+      if (tr) return /必須/.test(tr.innerText) || /(^|[\s_-])(required|must|hissu|req)([\s_-]|$)/i.test(tr.className);
       return false;
     };
     const els = [...root.querySelectorAll("input, textarea, select")].filter((el) => {

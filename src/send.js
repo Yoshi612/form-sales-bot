@@ -155,6 +155,10 @@ for (const [i, row] of targets.entries()) {
     await frame.evaluate(() => document.querySelectorAll("textarea").forEach((t) => (t.scrollTop = 0))).catch(() => {});
     await page.screenshot({ path: `${base}_送信前.png`, fullPage: true }).catch(() => {});
     res.beforeShot = path.relative(path.dirname(outPath), `${base}_送信前.png`);
+    // 担当者の確認用に、フォーム部分だけの画像も残す
+    await frame.locator("form:has(textarea)").first().scrollIntoViewIfNeeded({ timeout: 3000 }).catch(() => {});
+    await page.waitForTimeout(800);
+    await frame.locator("form:has(textarea)").first().screenshot({ path: `${base}_送信前_フォーム.png`, timeout: 5000 }).catch(() => {});
 
     if (dryRun) {
       Object.assign(res, { result: "ドライラン（未送信）", detail: "再確認・入力まで実施。ボタンは押していません" });

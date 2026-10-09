@@ -54,7 +54,14 @@ export async function findContactFormFrame(page) {
         const controls = [...form.querySelectorAll("input, select, textarea")];
         const all = form.innerText + " " + controls.map((el) => el.name).join(" ") + " " + document.title;
         const required = controls
-          .filter((el) => el.required || el.getAttribute("aria-required") === "true" || /必須/.test(el.closest("tr")?.innerText || ""))
+          .filter(
+            (el) =>
+              el.required ||
+              el.getAttribute("aria-required") === "true" ||
+              [...el.attributes].some((a) => /required|must|hissu/i.test(a.name) && a.value !== "false") ||
+              /必須/.test(el.closest("tr")?.innerText || "") ||
+              /(^|[\s_-])(required|must|hissu|req)([\s_-]|$)/i.test(el.closest("tr")?.className || "")
+          )
           .map((el) => el.name + " " + (el.closest("tr, dl, .form-group, p, li")?.innerText || ""))
           .join(" ");
         return distinct(all) < 4 && distinct(required) < 2;
