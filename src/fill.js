@@ -55,6 +55,7 @@ export async function fillForm(frame, fields, classes, row, config) {
     subject: render(config.subject, row, s),
     message: render(config.message, row, s),
   };
+  const shortMessage = config.messageShort ? render(config.messageShort, row, s) : null;
 
   const byIdx = new Map(fields.map((f) => [f.idx, f]));
   const counts = {};
@@ -63,6 +64,7 @@ export async function fillForm(frame, fields, classes, row, config) {
   const filled = [];
   const handledGroups = new Set();
   const overLength = [];
+  let usedShort = false;
 
   for (const { idx, category } of classes) {
     const f = byIdx.get(idx);
@@ -101,6 +103,11 @@ export async function fillForm(frame, fields, classes, row, config) {
         v = toHiragana(v);
       }
       const maxLen = await loc.getAttribute("maxlength");
+      // 本文が上限を超えるときは短縮版を使い、それでも超えるなら切り詰める
+      if (category === "message" && maxLen && v.length > Number(maxLen) && shortMessage) {
+        v = shortMessage;
+        usedShort = true;
+      }
       if (maxLen && Number(maxLen) > 0 && v.length > Number(maxLen)) {
         overLength.push(`${f.label || f.name || category}（上限${maxLen}字、文面${v.length}字）`);
         v = v.slice(0, Number(maxLen));
@@ -124,5 +131,5 @@ export async function fillForm(frame, fields, classes, row, config) {
       })
       .map((el) => el.name || el.id || el.placeholder)
   );
-  return { filled, missingRequired: [...new Set(missingRequired)], overLength };
+  return { filled, missingRequired: [...new Set(missingRequired)], overLength, usedShort };
 }

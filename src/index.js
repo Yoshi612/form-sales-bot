@@ -90,14 +90,14 @@ for (const [i, row] of targets.entries()) {
           }
         }
         classes ??= classifyByRules(fields);
-        const { filled, missingRequired, overLength } = await fillForm(found.frame, fields, classes, row, config);
+        const { filled, missingRequired, overLength, usedShort } = await fillForm(found.frame, fields, classes, row, config);
         result.filled = filled;
         result.missingRequired = missingRequired;
         result.pageCheck = "確認済";
         result.status = missingRequired.length ? "入力済（必須項目に空きあり）" : overLength.length ? "入力済（文字数オーバー）" : "入力済（送信待ち）";
         // 「利用可」は人が利用規約・ページを見て判断する。自動では付けない
         result.salesOk = "未確認";
-        result.noteAppend = ["営業お断りの記載は自動検出されず（送信前に目視確認）", result.captcha && `CAPTCHA: ${result.captcha}`, missingRequired.length && `未入力の必須: ${missingRequired.join(",")}`, overLength.length && `文字数オーバーで切り詰め: ${overLength.join(",")}`].filter(Boolean).join(" / ");
+        result.noteAppend = ["営業お断りの記載は自動検出されず（送信前に目視確認）", result.captcha && `CAPTCHA: ${result.captcha}`, missingRequired.length && `未入力の必須: ${missingRequired.join(",")}`, usedShort && "本文は短縮版を使用", overLength.length && `文字数オーバーで切り詰め: ${overLength.join(",")}`].filter(Boolean).join(" / ");
       }
 
       const shot = path.join(shotDir, `${String(row.no).padStart(2, "0")}_${row.company.replace(/[\\/:*?"<>|（）() ]/g, "")}.png`);
