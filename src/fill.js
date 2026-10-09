@@ -23,6 +23,11 @@ async function setChecked(loc) {
       el.dispatchEvent(new Event("change", { bubbles: true }));
     });
   }
+  // React 等の部品はチェックが戻されることがあるので、そのときは見えているラベルを押す
+  await new Promise((r) => setTimeout(r, 200));
+  if (!(await loc.isChecked().catch(() => true))) {
+    await loc.evaluate((el) => (el.closest("label") || el.parentElement).click()).catch(() => {});
+  }
 }
 
 const fieldName = (f) => (f.label && f.label.length <= 30 ? f.label : f.placeholder || f.name || f.label);
@@ -108,10 +113,16 @@ export async function fillForm(frame, fields, classes, row, config) {
     try {
       if (f.type === "radio" || (f.type === "checkbox" && category !== "agree")) {
         const key = `${f.type}:${f.name}`;
-        if (handledGroups.has(key) || !(f.required || category === "inquiryType")) continue;
-        handledGroups.add(key);
+        if (handledGroups.has(key)) continue;
         const group = fields.filter((g) => g.type === f.type && g.name === f.name);
-        const i = pickOption(group.map((g) => g.optionLabel));
+        const labels = group.map((g) => g.optionLabel);
+        // 必須の印がアイコンだけで判定できないフォームもあるため、
+        // 「その他」がある問い合わせ種別と、連絡方法（電話／メール）は必須でなくても選んでおく
+        const isContactMethod = labels.some((o) => /メール|e-?mail/i.test(o)) && labels.some((o) => /電話|tel/i.test(o)) && labels.length <= 4;
+        const hasOther = labels.some((o) => /その他|other/i.test(o));
+        if (!(f.required || category === "inquiryType" || isContactMethod || hasOther)) continue;
+        handledGroups.add(key);
+        const i = isContactMethod ? labels.findIndex((o) => /メール|e-?mail/i.test(o)) : pickOption(labels);
         if (i == null) continue;
         await setChecked(frame.locator(`[data-fsb="${group[i].idx}"]`));
         filled.push(`${fieldName(f)}：${group[i].optionLabel}`);
@@ -123,7 +134,8 @@ export async function fillForm(frame, fields, classes, row, config) {
         continue;
       }
       if (f.tag === "select") {
-        if (!(f.required || category === "inquiryType" || (category === "pref" && s.pref))) continue;
+        const selectHasOther = f.options.some((o) => /その他|other/i.test(o)) && !/車種|メーカー|model|car/i.test(f.label + f.name);
+        if (!(f.required || category === "inquiryType" || selectHasOther || (category === "pref" && s.pref))) continue;
         const i = category === "pref" ? (s.pref ? f.options.findIndex((o) => o.includes(s.pref)) : -1) : pickOption(f.options);
         if (i == null || i < 0) continue;
         await loc.selectOption({ index: i }, { timeout: 3000 });
