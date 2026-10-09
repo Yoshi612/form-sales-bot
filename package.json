@@ -6,7 +6,9 @@
   "scripts": {
     "test": "node test/run-test.js",
     "check": "node src/index.js",
-    "setup": "npx playwright install chromium"
+    "setup": "npx playwright install chromium",
+    "test:send": "node test/run-send-test.js",
+    "send": "node src/send.js"
   },
   "keywords": [],
   "author": "",

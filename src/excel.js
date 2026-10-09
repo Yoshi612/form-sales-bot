@@ -10,6 +10,7 @@ const COLS = {
   pageCheck: "問い合わせページ確認",
   salesOk: "営業利用可否",
   sendStatus: "送信ステータス",
+  contactDate: "接触日",
   note: "備考",
 };
 
@@ -53,6 +54,7 @@ export async function loadList(path) {
       officialUrl: get("officialUrl"),
       contactUrl: get("contactUrl"),
       sendStatus: get("sendStatus"),
+      salesOk: get("salesOk"),
     });
   });
   return { wb, ws, header, rows };
@@ -64,7 +66,9 @@ export function writeResult(list, row, result) {
   const r = ws.getRow(row.rowNumber);
   if (result.contactUrl) r.getCell(header[COLS.contactUrl]).value = result.contactUrl;
   r.getCell(header[COLS.pageCheck]).value = result.pageCheck;
-  r.getCell(header[COLS.salesOk]).value = result.salesOk;
+  // 担当者が確認して付けた「利用可」は、営業お断りが見つかった場合を除いて残す
+  const current = cellText(r.getCell(header[COLS.salesOk]));
+  if (!(current === "利用可" && result.salesOk !== "禁止")) r.getCell(header[COLS.salesOk]).value = result.salesOk;
   if (header[COLS.note] && result.noteAppend) {
     const cell = r.getCell(header[COLS.note]);
     // 再実行したときに [自動] の行が重ならないよう、前回分を消してから追記する
@@ -118,4 +122,48 @@ export function writeResult(list, row, result) {
 
 export async function saveList(list, path) {
   await list.wb.xlsx.writeFile(path);
+}
+
+/** 自動チェック詳細シートに記録された「入力した項目」（担当者が確認した内容） */
+export function approvedFilled(list, no) {
+  const ds = list.wb.getWorksheet(DETAIL_SHEET);
+  let text = null;
+  ds?.eachRow((r, n) => {
+    if (n > 1 && String(r.getCell(1).value) === String(no)) text = cellText(r.getCell(7));
+  });
+  return text;
+}
+
+const SEND_SHEET = "送信記録";
+
+/** 送信結果を、送信ステータス・接触日・備考と「送信記録」シートに書く */
+export function writeSend(list, row, res) {
+  const { ws, header } = list;
+  const r = ws.getRow(row.rowNumber);
+  if (res.sendStatus) r.getCell(header[COLS.sendStatus]).value = res.sendStatus;
+  if (res.contactDate && header[COLS.contactDate]) r.getCell(header[COLS.contactDate]).value = res.contactDate;
+  if (res.salesOk) r.getCell(header[COLS.salesOk]).value = res.salesOk;
+  if (header[COLS.note] && res.note) {
+    const cell = r.getCell(header[COLS.note]);
+    const prev = cellText(cell);
+    cell.value = prev ? `${prev}\n[送信] ${res.note}` : `[送信] ${res.note}`;
+  }
+  r.commit();
+
+  let ss = list.wb.getWorksheet(SEND_SHEET);
+  if (!ss) {
+    ss = list.wb.addWorksheet(SEND_SHEET);
+    ss.columns = [
+      { header: "日時", width: 20 },
+      { header: "No", width: 5 },
+      { header: "企業名", width: 28 },
+      { header: "問い合わせURL", width: 45 },
+      { header: "結果", width: 22 },
+      { header: "詳細", width: 50 },
+      { header: "送信前の画面", width: 32 },
+      { header: "送信後の画面", width: 32 },
+    ];
+    ss.getRow(1).font = { bold: true };
+  }
+  ss.addRow([new Date().toLocaleString("ja-JP"), row.no, row.company, row.contactUrl, res.result, res.detail || "", res.beforeShot || "", res.afterShot || ""]);
 }
