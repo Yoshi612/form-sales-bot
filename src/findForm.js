@@ -47,12 +47,17 @@ export async function findContactFormFrame(page) {
         const inputs = [...document.querySelectorAll("input:not([type=hidden]):not([type=submit]):not([type=button])")].filter(visible);
         if (!(tas.length > 0 && inputs.length >= 2)) return false;
         // 車両情報や予約日を入れさせるフォーム（買取査定・来店予約・レンタカー）は除外
+        // 全体で4種類以上、または必須欄で2種類以上の車両・予約項目があれば除外する
         const form = tas[0].closest("form") || document.body;
-        const names = [...form.querySelectorAll("input, select, textarea")].map((el) => el.name).join(" ");
-        const hits = (form.innerText + " " + names).match(
-          /メーカー|車種|年式|走行距離|排気量|修復歴|グレード|ご利用予定|配車|来店希望|予約日|car_class|maker|mileage|nenshiki/gi
-        );
-        return new Set((hits || []).map((h) => h.toLowerCase())).size < 3;
+        const RE = /メーカー|車種|年式|走行距離|排気量|修復歴|グレード|ご利用予定|配車|来店希望|予約日|レンタカー|car_class|maker|mileage|nenshiki|rental/gi;
+        const distinct = (text) => new Set((text.match(RE) || []).map((h) => h.toLowerCase())).size;
+        const controls = [...form.querySelectorAll("input, select, textarea")];
+        const all = form.innerText + " " + controls.map((el) => el.name).join(" ") + " " + document.title;
+        const required = controls
+          .filter((el) => el.required || el.getAttribute("aria-required") === "true")
+          .map((el) => el.name + " " + (el.closest("tr, dl, .form-group, p, li")?.innerText || ""))
+          .join(" ");
+        return distinct(all) < 4 && distinct(required) < 2;
       })
       .catch(() => false);
     if (ok) return frame;

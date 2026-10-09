@@ -45,7 +45,11 @@ export async function extractFields(frame) {
     return els.map((el, idx) => {
       el.setAttribute("data-fsb", String(idx));
       const label = labelOf(el);
-      const own = el.type === "radio" || el.type === "checkbox" ? clean(el.closest("label")?.innerText || el.nextSibling?.textContent || el.value) : "";
+      const forLabel = el.id ? document.querySelector(`label[for="${CSS.escape(el.id)}"]`)?.innerText : "";
+      const own =
+        el.type === "radio" || el.type === "checkbox"
+          ? [el.closest("label")?.innerText, forLabel, el.nextSibling?.textContent, el.nextElementSibling?.innerText, el.value].map(clean).find(Boolean) || ""
+          : "";
       return {
         idx,
         tag: el.tagName.toLowerCase(),
