@@ -76,7 +76,10 @@ const FAILED = /送信に失敗|エラーが発生|入力してください|入�
 const SEND_BUTTON = /送信|確認|次へ|submit|send|confirm|next/i;
 const NOT_SEND = /戻る|修正|リセット|クリア|取り消|キャンセル|back|reset|clear|cancel|検索|search/i;
 
-const pageText = (p) => p.evaluate(() => document.body?.innerText || "").catch(() => "");
+// 埋め込みフォーム（iframe）の中の表示も見るため、全フレームの文字をつなげる
+const pageText = async (p) =>
+  (await Promise.all(p.frames().map((f) => f.evaluate(() => document.body?.innerText || "").catch(() => "")))).join("\n");
+const BLOCKED = /403 Forbidden|Access Denied|アクセスが拒否|不正なアクセス|Request Rejected/i;
 
 /** フォーム（なければページ全体）から、押してよい送信系のボタンを探す */
 async function findButton(frame) {
@@ -86,16 +89,22 @@ async function findButton(frame) {
   for (const h of handles) {
     const label = await h.evaluate((el) => (el.innerText || el.value || el.alt || el.getAttribute("aria-label") || "").trim()).catch(() => "");
     const visible = await h.isVisible().catch(() => false);
-    if (visible && SEND_BUTTON.test(label) && !NOT_SEND.test(label)) return { handle: h, label };
+    const enabled = await h.isEnabled().catch(() => false);
+    if (visible && enabled && SEND_BUTTON.test(label) && !NOT_SEND.test(label)) return { handle: h, label };
   }
   return null;
 }
 
 async function clickAndWait(page, handle) {
-  await Promise.all([
-    page.waitForNavigation({ timeout: 15000 }).catch(() => {}),
-    handle.click({ timeout: 5000 }),
-  ]);
+  await handle.scrollIntoViewIfNeeded({ timeout: 3000 }).catch(() => {});
+  const nav = page.waitForNavigation({ timeout: 15000 }).catch(() => {});
+  try {
+    await handle.click({ timeout: 8000 });
+  } catch {
+    // 一瞬ほかの要素に隠れて押せないときは、同じボタンを直接押す
+    await handle.evaluate((el) => el.click());
+  }
+  await nav;
   await page.waitForLoadState("networkidle", { timeout: 8000 }).catch(() => {});
   await page.waitForTimeout(2500);
 }
@@ -155,17 +164,29 @@ for (const [i, row] of targets.entries()) {
     const textBefore = await pageText(page);
     let done = null;
     let clicked = [];
-    const messageStillThere = () =>
-      page.evaluate(() => [...document.querySelectorAll("textarea")].some((t) => t.value.length > 50)).catch(() => false);
+    const messageStillThere = async () =>
+      (await Promise.all(page.frames().map((f) => f.evaluate(() => [...document.querySelectorAll("textarea")].some((t) => t.value.length > 50 && t.getClientRects().length > 0 && getComputedStyle(t).visibility !== "hidden")).catch(() => false)))).some(Boolean);
     for (let step = 0; step < 3 && !done; step++) {
-      const target = (await findButton(frame).catch(() => null)) ?? (await findButton(page.mainFrame()));
+      let target = await findButton(frame).catch(() => null);
+      for (const f of page.frames()) target ??= await findButton(f).catch(() => null);
       if (!target) break;
       const urlBefore = page.url();
       clicked.push(target.label);
       await clickAndWait(page, target.handle);
       const text = await pageText(page);
       const fresh = text.split("\n").filter((l) => l.trim() && !textBefore.includes(l.trim())).join("\n");
-      const sendLeft = await findButton(page.mainFrame());
+      // 確認画面で初めて出てくる認証（「私はロボットではありません」など）があれば、そこで止めて手動へ
+      const laterCaptcha = await detectCaptcha(page);
+      if (laterCaptcha && !/不可視/.test(laterCaptcha)) {
+        Object.assign(res, { result: "送らず（手動送信へ）", detail: `押したボタン: ${clicked.join(" → ")} ／ 確認画面に認証あり: ${laterCaptcha}`, note: `確認画面に認証（${laterCaptcha}）があるため送信していません。手動で送信してください` });
+        break;
+      }
+      if (BLOCKED.test(fresh)) {
+        Object.assign(res, { result: "送信できず（サイトに拒否された）", detail: `押したボタン: ${clicked.join(" → ")} ／ 画面の表示: ${fresh.match(BLOCKED)[0]}`, note: "相手サイトが自動送信を受け付けませんでした（送信はされていません）。手動で送信してください" });
+        break;
+      }
+      let sendLeft = null;
+      for (const f of page.frames()) sendLeft ??= await findButton(f).catch(() => null);
       done = fresh.match(STRONG_DONE)?.[0] ?? (!sendLeft || !/送信|send|submit/i.test(sendLeft.label) ? fresh.match(WEAK_DONE)?.[0] : null) ?? null;
       if (done) break;
       // 画面が変わらず入力も残っているなら、同じボタンをもう一度押さない（二重送信の防止）
