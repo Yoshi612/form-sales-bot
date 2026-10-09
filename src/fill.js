@@ -1,5 +1,30 @@
 // 判定結果に従ってフォームに入力する。送信ボタンは押さない。
 
+// 通常の操作で入力できない欄（アニメーションで隠れている等）は、値を直接入れてイベントを発火する
+async function setValue(loc, v) {
+  try {
+    await loc.scrollIntoViewIfNeeded({ timeout: 2000 }).catch(() => {});
+    await loc.fill(v, { timeout: 3000 });
+  } catch {
+    await loc.evaluate((el, val) => {
+      el.value = val;
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+    }, v);
+  }
+}
+
+async function setChecked(loc) {
+  try {
+    await loc.check({ force: true, timeout: 3000 });
+  } catch {
+    await loc.evaluate((el) => {
+      el.checked = true;
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+  }
+}
+
 const toHiragana = (s) => s.replace(/[ァ-ヶ]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0x60));
 
 function render(tpl, row, s) {
@@ -79,12 +104,12 @@ export async function fillForm(frame, fields, classes, row, config) {
         const group = fields.filter((g) => g.type === f.type && g.name === f.name);
         const i = pickOption(group.map((g) => g.optionLabel));
         if (i == null) continue;
-        await frame.locator(`[data-fsb="${group[i].idx}"]`).check({ force: true, timeout: 3000 });
+        await setChecked(frame.locator(`[data-fsb="${group[i].idx}"]`));
         filled.push(`${f.label || f.name}=${group[i].optionLabel}`);
         continue;
       }
       if (category === "agree") {
-        await loc.check({ force: true, timeout: 3000 });
+        await setChecked(loc);
         filled.push("同意チェック");
         continue;
       }
@@ -99,7 +124,7 @@ export async function fillForm(frame, fields, classes, row, config) {
       if (category === "ignore" || category === "inquiryType") continue;
       let v = splitValue(category, values[category] ?? "", counts[category], pos);
       if (!v) continue;
-      if ((category === "kana" || category === "lastKana" || category === "firstKana") && /ふりがな|ひらがな/.test(f.label + f.placeholder)) {
+      if ((category === "kana" || category === "lastKana" || category === "firstKana") && (/ふりがな|ひらがな/.test(f.label) || /^[\u3041-\u3096\u30fc\s　（）()例：:]+$/.test(f.placeholder.replace(/[a-z]/gi, "")) && /[\u3041-\u3096]/.test(f.placeholder))) {
         v = toHiragana(v);
       }
       const maxLen = await loc.getAttribute("maxlength");
@@ -112,7 +137,7 @@ export async function fillForm(frame, fields, classes, row, config) {
         overLength.push(`${f.label || f.name || category}（上限${maxLen}字、文面${v.length}字）`);
         v = v.slice(0, Number(maxLen));
       }
-      await loc.fill(v, { timeout: 3000 });
+      await setValue(loc, v);
       filled.push(`${f.label || f.name || f.placeholder || category}`);
     } catch {
       // 入力できなかった欄は missingRequired 側で拾う

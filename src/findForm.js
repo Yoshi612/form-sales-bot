@@ -45,7 +45,14 @@ export async function findContactFormFrame(page) {
         const visible = (el) => !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
         const tas = [...document.querySelectorAll("textarea")].filter(visible);
         const inputs = [...document.querySelectorAll("input:not([type=hidden]):not([type=submit]):not([type=button])")].filter(visible);
-        return tas.length > 0 && inputs.length >= 2;
+        if (!(tas.length > 0 && inputs.length >= 2)) return false;
+        // 車両情報や予約日を入れさせるフォーム（買取査定・来店予約・レンタカー）は除外
+        const form = tas[0].closest("form") || document.body;
+        const names = [...form.querySelectorAll("input, select, textarea")].map((el) => el.name).join(" ");
+        const hits = (form.innerText + " " + names).match(
+          /メーカー|車種|年式|走行距離|排気量|修復歴|グレード|ご利用予定|配車|来店希望|予約日|car_class|maker|mileage|nenshiki/gi
+        );
+        return new Set((hits || []).map((h) => h.toLowerCase())).size < 3;
       })
       .catch(() => false);
     if (ok) return frame;
@@ -113,6 +120,11 @@ export async function findContactPage(page, row, settings) {
     if (!(await gotoSafe(page, url, timeout))) continue;
     const frame = await findContactFormFrame(page);
     if (frame) return { url: page.url(), frame, reason: "自動探索" };
+    // 問い合わせページにフォームがなく、店舗ごとのメールアドレスだけ載っている場合に備えて拾っておく
+    if (!mailto) {
+      const mails = await page.$$eval('a[href^="mailto:"]', (as) => as.map((a) => a.href.replace("mailto:", "").split("?")[0]));
+      if (mails.length) mailto = [...new Set(mails)].slice(0, 3).join(", ");
+    }
   }
 
   if (mailto) return { mailto, reason: "フォームなし（メールアドレスのみ）" };

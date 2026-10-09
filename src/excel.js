@@ -67,7 +67,8 @@ export function writeResult(list, row, result) {
   r.getCell(header[COLS.salesOk]).value = result.salesOk;
   if (header[COLS.note] && result.noteAppend) {
     const cell = r.getCell(header[COLS.note]);
-    const prev = cellText(cell);
+    // 再実行したときに [自動] の行が重ならないよう、前回分を消してから追記する
+    const prev = cellText(cell).split("\n").filter((l) => !l.startsWith("[自動]")).join("\n");
     cell.value = prev ? `${prev}\n[自動] ${result.noteAppend}` : `[自動] ${result.noteAppend}`;
   }
   r.commit();
@@ -90,7 +91,7 @@ export function writeResult(list, row, result) {
     ];
     ds.getRow(1).font = { bold: true };
   }
-  ds.addRow([
+  const values = [
     row.no,
     row.company,
     result.contactUrl || "",
@@ -102,7 +103,17 @@ export function writeResult(list, row, result) {
     result.classifier || "",
     result.screenshot || "",
     new Date().toLocaleString("ja-JP"),
-  ]);
+  ];
+  let existing;
+  ds.eachRow((r, n) => {
+    if (n > 1 && String(r.getCell(1).value) === String(row.no)) existing = r;
+  });
+  if (existing) {
+    values.forEach((v, i) => (existing.getCell(i + 1).value = v));
+    existing.commit();
+  } else {
+    ds.addRow(values);
+  }
 }
 
 export async function saveList(list, path) {

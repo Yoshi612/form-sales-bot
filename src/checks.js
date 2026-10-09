@@ -6,7 +6,11 @@ const NO_SALES_PATTERNS = [
 ];
 
 export async function detectNoSales(frame) {
-  const text = await frame.evaluate(() => document.body?.innerText || "").catch(() => "");
+  const text = await frame
+    .evaluate(() =>
+      [document.body?.innerText || "", ...[...document.querySelectorAll("[placeholder]")].map((el) => el.getAttribute("placeholder"))].join("\n")
+    )
+    .catch(() => "");
   for (const re of NO_SALES_PATTERNS) {
     const m = text.match(re);
     if (m) {
@@ -33,6 +37,13 @@ export async function detectCaptcha(page) {
     .evaluate(() => /画像認証|認証コード|画像内の文字|表示されている文字/.test(document.body?.innerText || ""))
     .catch(() => false);
   if (imageAuth) return "画像認証（手入力が必要）";
+  const quiz = await page
+    .evaluate(() =>
+      [...document.querySelectorAll("input[name*=quiz], input[name*=captcha]")].length > 0 ||
+      /\d\s*[+＋\-－×]\s*\d\s*(は|=|＝)/.test(document.body?.innerText || "")
+    )
+    .catch(() => false);
+  if (quiz) return "計算クイズ（手入力が必要）";
   const v3 = await page.evaluate(() => !!document.querySelector('script[src*="recaptcha/api.js?render="]')).catch(() => false);
   if (v3) return "reCAPTCHA v3(不可視)";
   return null;

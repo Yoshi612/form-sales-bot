@@ -64,7 +64,7 @@ export async function extractFields(frame) {
 
 const RULES = [
   ["ignore", (f) => /画像認証|認証コード|認証文字|captcha|spam-?block|画像内の文字/i.test(f.label + f.name + f.placeholder)],
-  ["agree", (f) => f.type === "checkbox" && /同意|プライバシー|個人情報|privacy|agree/i.test(f.label + f.optionLabel + f.name)],
+  ["agree", (f) => f.type === "checkbox" && /同意|プライバシー|個人情報|privacy|agree|確認しました|acceptance/i.test(f.label + f.optionLabel + f.name)],
   ["inquiryType", (f) => (f.tag === "select" || f.type === "radio" || f.type === "checkbox") && /種別|種類|項目|内容|区分|用件|type|category|subject/i.test(f.label + f.name)],
   ["emailConfirm", (f) => /確認|再入力|confirm|again|re_?mail|mail2|email2/i.test(f.label + f.name + f.placeholder) && /mail|メール/i.test(f.label + f.name + f.type)],
   ["email", (f) => f.type === "email" || /e-?mail|メール/i.test(f.label + f.name + f.placeholder)],
@@ -86,11 +86,38 @@ const RULES = [
   ["message", (f) => f.tag === "textarea"],
 ];
 
+// ラベルはレイアウトによって隣の欄のものを拾うことがあるので、
+// まず name 属性・type・placeholder だけで判定し、決まらないときにラベルを使う
+const STRONG = [
+  ["ignore", (f) => /captcha|quiz|spam|token|honeypot/i.test(f.name)],
+  ["agree", (f) => f.type === "checkbox" && /agree|accept|privacy|consent|doui/i.test(f.name)],
+  ["message", (f) => f.tag === "textarea"],
+  ["emailConfirm", (f) => (f.type === "email" || /mail/i.test(f.name)) && /conf|check|again|re_?mail|mail_?2|mail2|確認/i.test(f.name + f.placeholder)],
+  ["email", (f) => f.type === "email" || /e-?mail|^mail/i.test(f.name)],
+  ["tel", (f) => f.type === "tel" || /tel|phone/i.test(f.name)],
+  ["lastKana", (f) => /^(セイ|せい)$/.test(f.placeholder) || /(kana|ruby|furi).*(1|sei|last)|(1|sei|last).*(kana|ruby|furi)/i.test(f.name)],
+  ["firstKana", (f) => /^(メイ|めい)$/.test(f.placeholder) || /(kana|ruby|furi).*(2|mei|first)|(2|mei|first).*(kana|ruby|furi)/i.test(f.name)],
+  ["kana", (f) => /kana|ruby|furi/i.test(f.name)],
+  ["zip", (f) => /zip|post_?code|postal|yubin/i.test(f.name)],
+  ["pref", (f) => /pref/i.test(f.name)],
+  ["company", (f) => /company|corp|kaisha|organization|会社/i.test(f.name)],
+  ["lastName", (f) => /^姓$/.test(f.placeholder) || /last_?name|family_?name|^sei$|name_?1$|name\[?(sei|last)/i.test(f.name)],
+  ["firstName", (f) => /^名$/.test(f.placeholder) || /first_?name|given_?name|^mei$|name_?2$|name\[?(mei|first)/i.test(f.name)],
+  ["name", (f) => /^(your-?)?name$|full_?name|^namae$|contact_?name|onamae/i.test(f.name)],
+  ["address", (f) => /address|addr|jusho/i.test(f.name)],
+];
+
 export function classifyByRules(fields) {
-  return fields.map((f) => {
-    const hit = RULES.find(([, test]) => test(f));
+  const classes = fields.map((f) => {
+    const hit = STRONG.find(([, test]) => test(f)) ?? RULES.find(([, test]) => test(f));
     return { idx: f.idx, category: hit ? hit[0] : "ignore" };
   });
+  // 「姓」だけ・「セイ」だけで対になる欄がなければ、1欄にフルネームを入れる
+  const has = (c) => classes.some((x) => x.category === c);
+  for (const [a, b, whole] of [["lastName", "firstName", "name"], ["lastKana", "firstKana", "kana"]]) {
+    if (has(a) !== has(b)) for (const x of classes) if (x.category === a || x.category === b) x.category = whole;
+  }
+  return classes;
 }
 
 const ClaudeResult = z.object({
