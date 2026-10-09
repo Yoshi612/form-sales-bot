@@ -55,7 +55,7 @@ for (const row of picked) {
   if (why) console.log(`No.${row.no} ${row.company} → 送りません：${why}`);
   else targets.push(row);
 }
-if (targets.length > maxPerRun) {
+if (!dryRun && targets.length > maxPerRun) {
   console.error(`1回に送れるのは ${maxPerRun} 社までです（指定 ${targets.length} 社）。`);
   process.exit(1);
 }
