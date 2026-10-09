@@ -1,0 +1,21 @@
+{
+  "name": "form-sales-bot",
+  "version": "1.0.0",
+  "description": "営業リストの問い合わせフォームを探して入力まで行う（送信はしない）",
+  "main": "index.js",
+  "scripts": {
+    "test": "node test/run-test.js",
+    "check": "node src/index.js",
+    "setup": "npx playwright install chromium"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.132.1",
+    "exceljs": "^4.4.0",
+    "playwright": "^1.64.0",
+    "zod": "^4.6.5"
+  }
+}

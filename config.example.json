@@ -1,0 +1,26 @@
+{
+  "sender": {
+    "company": "株式会社〇〇",
+    "department": "営業部",
+    "position": "",
+    "lastName": "山田",
+    "firstName": "太郎",
+    "lastNameKana": "ヤマダ",
+    "firstNameKana": "タロウ",
+    "email": "taro.yamada@example.co.jp",
+    "tel": "03-0000-0000",
+    "zip": "100-0001",
+    "pref": "東京都",
+    "address": "東京都千代田区〇〇1-2-3",
+    "url": "https://example.co.jp/"
+  },
+  "subject": "【ご提案】{{営業切り口}}について",
+  "message": "{{企業名}}\nご担当者様\n\n突然のご連絡失礼いたします。\n株式会社〇〇の山田と申します。\n\n貴社の{{確認できた事業}}のお取り組みを拝見し、{{営業切り口}}としてお役に立てるのではと思い、ご連絡いたしました。\n\n（ここにサービス概要を2〜3行）\n\nご興味をお持ちいただけましたら、15分ほどオンラインでご説明の機会をいただけますと幸いです。\n\n※今後このようなご案内が不要な場合は、お手数ですが本メールアドレス宛にその旨ご返信ください。以後のご連絡は控えます。\n\n株式会社〇〇 営業部 山田太郎\nTEL: 03-0000-0000 / Mail: taro.yamada@example.co.jp",
+  "settings": {
+    "delayMs": 4000,
+    "pageTimeoutMs": 20000,
+    "maxCandidatesPerSite": 5,
+    "useClaude": true,
+    "claudeModel": "claude-opus-5-5"
+  }
+}
