@@ -152,6 +152,13 @@ export function classifyByRules(fields) {
     const hit = STRONG.find(([, test]) => test(f)) ?? RULES.find(([, test]) => test(f));
     return { idx: f.idx, category: hit ? hit[0] : "ignore" };
   });
+  // address / address2 / address3 のように3つあれば、2つ目は番地、3つ目が建物名
+  const numbered = (n) => fields.find((f) => new RegExp(`addr(ess)?[-_]?${n}$`, "i").test(f.name));
+  const third = numbered(3), second = numbered(2);
+  if (third && second) {
+    classes[second.idx].category = "address";
+    classes[third.idx].category = "building";
+  }
   // 「お名前」「フリガナ」が2欄並んでいれば、姓と名に分ける
   for (const [whole, a, b] of [["name", "lastName", "firstName"], ["kana", "lastKana", "firstKana"]]) {
     const same = classes.filter((x) => x.category === whole);
