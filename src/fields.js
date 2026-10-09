@@ -30,6 +30,16 @@ export async function extractFields(frame) {
       if (th) return clean(th.innerText);
       const dd = el.closest("dd");
       if (dd?.previousElementSibling?.tagName === "DT") return clean(dd.previousElementSibling.innerText);
+      // その欄だけを含む一番近い囲み（1行分）の文字をラベルとみなす
+      let anc = el.parentElement;
+      for (let i = 0; i < 5 && anc && anc !== root && anc !== document.body; i++) {
+        if (anc.querySelectorAll("input:not([type=hidden]), select, textarea").length > 1) break;
+        const c = anc.cloneNode(true);
+        c.querySelectorAll("select, option, textarea, input, script, style").forEach((e) => e.remove());
+        const t = clean(c.textContent);
+        if (t) return t;
+        anc = anc.parentElement;
+      }
       let node = el;
       for (let i = 0; i < 4 && node; i++) {
         const prev = node.previousElementSibling;
@@ -92,13 +102,20 @@ const RULES = [
 
 // ラベルはレイアウトによって隣の欄のものを拾うことがあるので、
 // まず name 属性・type・placeholder だけで判定し、決まらないときにラベルを使う
+const ADDRESSY = /住所|郵便|〒|fax|ファックス|ＦＡＸ/i;
 const STRONG = [
   ["ignore", (f) => /captcha|quiz|spam|token|honeypot/i.test(f.name)],
+  ["ignore", (f) => /fax/i.test(f.name) || /fax|ファックス|ＦＡＸ/i.test(f.label + f.placeholder)],
+  ["pref", (f) => f.tag === "select" && f.options.includes("東京都") && f.options.includes("大阪府")],
   ["agree", (f) => f.type === "checkbox" && /agree|accept|privacy|consent|doui/i.test(f.name)],
   ["message", (f) => f.tag === "textarea"],
   ["emailConfirm", (f) => (f.type === "email" || /mail/i.test(f.name)) && /conf|check|again|re_?mail|mail_?2|mail2|確認/i.test(f.name + f.placeholder)],
   ["email", (f) => f.type === "email" || /e-?mail|^mail/i.test(f.name)],
-  ["tel", (f) => f.type === "tel" || /tel|phone/i.test(f.name)],
+  ["zip", (f) =>
+    /zip|post_?code|postal|yubin/i.test(f.name) ||
+    (!/address|addr|住所/i.test(f.name + f.label) && /〒|郵便|^\d{3}-?\d{4}/.test(f.placeholder)) ||
+    ((f.type === "tel" || f.type === "number") && /郵便|〒/.test(f.label))],
+  ["tel", (f) => (f.type === "tel" && !ADDRESSY.test(f.label + f.name + f.placeholder)) || /tel|phone/i.test(f.name)],
   ["lastKana", (f) => /^(セイ|せい)$/.test(f.placeholder) || /(kana|ruby|furi).*(1|sei|last)|(1|sei|last).*(kana|ruby|furi)/i.test(f.name)],
   ["firstKana", (f) => /^(メイ|めい)$/.test(f.placeholder) || /(kana|ruby|furi).*(2|mei|first)|(2|mei|first).*(kana|ruby|furi)/i.test(f.name)],
   ["kana", (f) => /kana|ruby|furi/i.test(f.name)],

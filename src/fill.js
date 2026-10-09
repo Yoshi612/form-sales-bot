@@ -39,22 +39,29 @@ function render(tpl, row, s) {
     .replaceAll("{{営業切り口}}", row.angle || "ご提案");
 }
 
-const PREFERRED_OPTION = /その他|ご提案|提案|業務提携|取引|法人|お問い?合わ?せ|一般/;
-const BAD_OPTION = /^(選択|--|ー|－|お選び|please|select)|採用|求人|購入|査定|買取|見積/i;
+// 選択肢は上から順に優先する。どれにも当たらないときは選ばない（必須なら空きとして記録される）
+const PREFERRED_OPTIONS = [/いいえ|該当しない/, /営業|ご提案|提案|業務提携|協業|お取引|取引|法人|ビジネス/, /その他|other/i, /一般|お問い?合わ?せ/];
+const BAD_OPTION =
+  /^(--|ー|－|please|select)|選択して|お選び|採用|求人|購入|査定|買取|買い取り|見積|売却|車検|整備|修理|保険|ローン|レンタ|在庫|予約|試乗|来店|部品|パーツ|メンテ|コーティング|板金|鈑金/i;
 
 function pickOption(options) {
   const usable = options.map((o, i) => ({ o, i })).filter(({ o }) => o && !BAD_OPTION.test(o));
-  return (usable.find(({ o }) => PREFERRED_OPTION.test(o)) ?? usable[0])?.i;
+  for (const re of PREFERRED_OPTIONS) {
+    const hit = usable.find(({ o }) => re.test(o));
+    if (hit) return hit.i;
+  }
+  return undefined;
 }
 
 /** 同じカテゴリが複数欄ある（電話番号3分割など）場合に値を分ける */
-function splitValue(category, value, count, pos) {
-  if (count <= 1) return value;
-  if (category === "tel" || category === "zip") {
-    const parts = value.split(/[-ー－]/);
-    return parts[pos] ?? "";
-  }
-  if (category === "emailConfirm" || category === "email") return value;
+// 電話番号の3分割・郵便番号の2分割は、欄の数が合っていて並んでいるときだけ分ける。
+// それ以外で同じ種類の欄が複数あるときは、最初の欄にだけ全体を入れる
+function splitValue(category, value, idxs, pos) {
+  if (idxs.length <= 1) return value;
+  if (category === "email" || category === "emailConfirm") return value;
+  const parts = value.split(/[-ー－]/);
+  const adjacent = Math.max(...idxs) - Math.min(...idxs) <= idxs.length;
+  if ((category === "tel" || category === "zip") && parts.length === idxs.length && adjacent) return parts[pos] ?? "";
   return pos === 0 ? value : "";
 }
 
@@ -83,8 +90,8 @@ export async function fillForm(frame, fields, classes, row, config) {
   const shortMessage = config.messageShort ? render(config.messageShort, row, s) : null;
 
   const byIdx = new Map(fields.map((f) => [f.idx, f]));
-  const counts = {};
-  for (const c of classes) counts[c.category] = (counts[c.category] ?? 0) + 1;
+  const idxsOf = {};
+  for (const c of classes) (idxsOf[c.category] ??= []).push(c.idx);
   const seen = {};
   const filled = [];
   const handledGroups = new Set();
@@ -122,12 +129,16 @@ export async function fillForm(frame, fields, classes, row, config) {
         continue;
       }
       if (category === "ignore" || category === "inquiryType") continue;
-      let v = splitValue(category, values[category] ?? "", counts[category], pos);
+      let v = splitValue(category, values[category] ?? "", idxsOf[category], pos);
       if (!v) continue;
       if ((category === "kana" || category === "lastKana" || category === "firstKana") && (/ふりがな|ひらがな/.test(f.label) || /^[\u3041-\u3096\u30fc\s　（）()例：:]+$/.test(f.placeholder.replace(/[a-z]/gi, "")) && /[\u3041-\u3096]/.test(f.placeholder))) {
         v = toHiragana(v);
       }
       const maxLen = await loc.getAttribute("maxlength");
+      // 「ハイフンなし」指定や桁数制限のある電話・郵便番号欄は、ハイフンを除いて入れる
+      if ((category === "tel" || category === "zip") && (/ハイフン(なし|無し|不要)|ハイフンを?入れず/.test(f.label + f.placeholder) || /^\d+$/.test(f.placeholder) || (maxLen && v.length > Number(maxLen)))) {
+        v = v.replace(/[-ー－]/g, "");
+      }
       // 本文が上限を超えるときは短縮版を使い、それでも超えるなら切り詰める
       if (category === "message" && maxLen && v.length > Number(maxLen) && shortMessage) {
         v = shortMessage;
