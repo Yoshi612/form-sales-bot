@@ -102,6 +102,12 @@ for (const [i, row] of targets.entries()) {
 
       const shot = path.join(shotDir, `${String(row.no).padStart(2, "0")}_${row.company.replace(/[\\/:*?"<>|（）() ]/g, "")}.png`);
       await page.screenshot({ path: shot, fullPage: true }).catch(() => {});
+      // 確認用にフォーム部分だけのスクリーンショットも撮る
+      if (found.frame && !result.noSalesText) {
+        await found.frame.evaluate(() => document.querySelectorAll("textarea").forEach((t) => (t.scrollTop = 0))).catch(() => {});
+        const form = found.frame.locator("form:has(textarea)").first();
+        await form.screenshot({ path: shot.replace(/\.png$/, "_form.png"), timeout: 5000 }).catch(() => {});
+      }
       result.screenshot = path.relative(path.dirname(outPath), shot);
       console.log(`${label} → ${result.status} / 営業利用可否=${result.salesOk}${result.captcha ? " / CAPTCHA " + result.captcha : ""}`);
     }

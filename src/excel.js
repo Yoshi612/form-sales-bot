@@ -98,7 +98,7 @@ export function writeResult(list, row, result) {
     result.status,
     result.noSalesText || "",
     result.captcha || "",
-    (result.filled || []).join(", "),
+    (result.filled || []).join("\n"),
     (result.missingRequired || []).join(", "),
     result.classifier || "",
     result.screenshot || "",

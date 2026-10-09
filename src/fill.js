@@ -105,12 +105,12 @@ export async function fillForm(frame, fields, classes, row, config) {
         const i = pickOption(group.map((g) => g.optionLabel));
         if (i == null) continue;
         await setChecked(frame.locator(`[data-fsb="${group[i].idx}"]`));
-        filled.push(`${f.label || f.name}=${group[i].optionLabel}`);
+        filled.push(`${f.label || f.name}：${group[i].optionLabel}`);
         continue;
       }
       if (category === "agree") {
         await setChecked(loc);
-        filled.push("同意チェック");
+        filled.push(`${f.optionLabel || f.label || "同意"}：チェック`);
         continue;
       }
       if (f.tag === "select") {
@@ -118,7 +118,7 @@ export async function fillForm(frame, fields, classes, row, config) {
         const i = category === "pref" ? (s.pref ? f.options.findIndex((o) => o.includes(s.pref)) : -1) : pickOption(f.options);
         if (i == null || i < 0) continue;
         await loc.selectOption({ index: i }, { timeout: 3000 });
-        filled.push(`${f.label || f.name}=${f.options[i]}`);
+        filled.push(`${f.label || f.name}：${f.options[i]}`);
         continue;
       }
       if (category === "ignore" || category === "inquiryType") continue;
@@ -138,7 +138,8 @@ export async function fillForm(frame, fields, classes, row, config) {
         v = v.slice(0, Number(maxLen));
       }
       await setValue(loc, v);
-      filled.push(`${f.label || f.name || f.placeholder || category}`);
+      const shown = category === "message" ? `（本文${usedShort && v === shortMessage ? "・短縮版" : ""} ${v.length}字）` : v;
+      filled.push(`${f.label || f.name || f.placeholder || category}：${shown}`);
     } catch {
       // 入力できなかった欄は missingRequired 側で拾う
     }
