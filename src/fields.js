@@ -55,7 +55,15 @@ export async function extractFields(frame) {
       if (/(^|[\s_-])(required|is-required|must|hissu|req)([\s_-]|$)/i.test(el.className)) return true;
       const tr = el.closest("tr");
       if (tr) return /必須/.test(tr.innerText) || /(^|[\s_-])(required|must|hissu|req)([\s_-]|$)/i.test(tr.className);
-      return false;
+      // 表でない場合: その欄だけを含む一番外側の囲み（li や div の1行分）に「必須」や required の印があるか
+      let anc = el.parentElement, row = null;
+      for (let i = 0; i < 6 && anc && anc !== root; i++) {
+        const names = new Set([...anc.querySelectorAll("input:not([type=hidden]), select, textarea")].map((c) => c.name || c.id));
+        if (names.size > 1) break;
+        row = anc;
+        anc = anc.parentElement;
+      }
+      return !!row && (/必須/.test(row.innerText) || !!row.querySelector('[class*="required"], [class*="hissu"], [class*="must"]'));
     };
     const els = [...root.querySelectorAll("input, textarea, select")].filter((el) => {
       if (el.tagName === "INPUT" && /^(hidden|submit|button|image|reset|file|search)$/i.test(el.type)) return false;
@@ -125,14 +133,14 @@ const STRONG = [
     (!/address|addr|住所/i.test(f.name + f.label) && /〒|郵便|^\D{0,3}\d{3}-?\d{4}\D{0,12}$/.test(f.placeholder)) ||
     ((f.type === "tel" || f.type === "number") && /郵便|〒/.test(f.label))],
   ["tel", (f) => (f.type === "tel" && !ADDRESSY.test(f.label + f.name + f.placeholder)) || /tel|phone/i.test(f.name)],
-  ["lastKana", (f) => /^(セイ|せい)$/.test(f.placeholder) || /(kana|ruby|furi).*(1|sei|last)|(1|sei|last).*(kana|ruby|furi)/i.test(f.name)],
-  ["firstKana", (f) => /^(メイ|めい)$/.test(f.placeholder) || /(kana|ruby|furi).*(2|mei|first)|(2|mei|first).*(kana|ruby|furi)/i.test(f.name)],
+  ["lastKana", (f) => /^(セイ|せい)$/.test(f.placeholder) || /(kana|ruby|furi).*(1|sei|last|family)|(1|sei|last|family).*(kana|ruby|furi)/i.test(f.name)],
+  ["firstKana", (f) => /^(メイ|めい)$/.test(f.placeholder) || /(kana|ruby|furi).*(2|mei|first|given)|(2|mei|first|given).*(kana|ruby|furi)/i.test(f.name)],
   ["kana", (f) => /kana|ruby|furi/i.test(f.name)],
   ["zip", (f) => /zip|post_?code|postal|yubin/i.test(f.name)],
   ["pref", (f) => /pref/i.test(f.name)],
   ["company", (f) => /company|corp|kaisha|organization|会社/i.test(f.name)],
-  ["lastName", (f) => /^姓$/.test(f.placeholder) || /last_?name|family_?name|^sei$|name_?1$|name\[?(sei|last)/i.test(f.name)],
-  ["firstName", (f) => /^名$/.test(f.placeholder) || /first_?name|given_?name|^mei$|name_?2$|name\[?(mei|first)/i.test(f.name)],
+  ["lastName", (f) => /^姓$/.test(f.placeholder) || /last[_-]?name|family[_-]?name|^sei$|name_?1$|name\[?(sei|last)/i.test(f.name)],
+  ["firstName", (f) => /^名$/.test(f.placeholder) || /first[_-]?name|given[_-]?name|^mei$|name_?2$|name\[?(mei|first)/i.test(f.name)],
   ["name", (f) => /^(your-?)?name$|full_?name|^namae$|contact_?name|onamae/i.test(f.name)],
   ["address", (f) => /address|addr|jusho/i.test(f.name)],
 ];
@@ -142,6 +150,11 @@ export function classifyByRules(fields) {
     const hit = STRONG.find(([, test]) => test(f)) ?? RULES.find(([, test]) => test(f));
     return { idx: f.idx, category: hit ? hit[0] : "ignore" };
   });
+  // 「お名前」「フリガナ」が2欄並んでいれば、姓と名に分ける
+  for (const [whole, a, b] of [["name", "lastName", "firstName"], ["kana", "lastKana", "firstKana"]]) {
+    const same = classes.filter((x) => x.category === whole);
+    if (same.length === 2 && same[1].idx - same[0].idx === 1) [same[0].category, same[1].category] = [a, b];
+  }
   // 「姓」だけ・「セイ」だけで対になる欄がなければ、1欄にフルネームを入れる
   const has = (c) => classes.some((x) => x.category === c);
   for (const [a, b, whole] of [["lastName", "firstName", "name"], ["lastKana", "firstKana", "kana"]]) {

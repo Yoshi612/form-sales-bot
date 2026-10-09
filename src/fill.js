@@ -136,7 +136,12 @@ export async function fillForm(frame, fields, classes, row, config) {
       if (f.tag === "select") {
         const selectHasOther = f.options.some((o) => /その他|other/i.test(o)) && !/車種|メーカー|model|car/i.test(f.label + f.name);
         if (!(f.required || category === "inquiryType" || selectHasOther || (category === "pref" && s.pref))) continue;
-        const i = category === "pref" ? (s.pref ? f.options.findIndex((o) => o.includes(s.pref)) : -1) : pickOption(f.options);
+        let i = category === "pref" ? (s.pref ? f.options.findIndex((o) => o.includes(s.pref)) : -1) : pickOption(f.options);
+        // 必須の「店舗選択」は本店（なければ最初の店舗）を選ぶ
+        if (i == null && f.required && /店舗|店|拠点|store|shop/i.test(f.label + f.name)) {
+          const usable = f.options.map((o, k) => ({ o, k })).filter(({ o }) => o && !/選択|お選び|^-+$|please|select/i.test(o));
+          i = (usable.find(({ o }) => /本店|本社/.test(o)) ?? usable[0])?.k;
+        }
         if (i == null || i < 0) continue;
         await loc.selectOption({ index: i }, { timeout: 3000 });
         filled.push(`${fieldName(f)}：${f.options[i]}`);
