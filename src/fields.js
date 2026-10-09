@@ -17,7 +17,7 @@ export async function extractFields(frame) {
     const visible = (el) => !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
     const ta = [...document.querySelectorAll("textarea")].find(visible);
     const root = ta?.closest("form") || document;
-    const clean = (s) => (s || "").replace(/\s+/g, " ").trim().slice(0, 60);
+    const clean = (s) => (s || "").replace(/[\u200B-\u200D\uFEFF]/g, "").replace(/\s+/g, " ").trim().slice(0, 60);
     const labelOf = (el) => {
       if (el.id) {
         const l = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
@@ -113,7 +113,7 @@ const STRONG = [
   ["email", (f) => f.type === "email" || /e-?mail|^mail/i.test(f.name)],
   ["zip", (f) =>
     /zip|post_?code|postal|yubin/i.test(f.name) ||
-    (!/address|addr|住所/i.test(f.name + f.label) && /〒|郵便|^\d{3}-?\d{4}/.test(f.placeholder)) ||
+    (!/address|addr|住所/i.test(f.name + f.label) && /〒|郵便|^\D{0,3}\d{3}-?\d{4}\D{0,12}$/.test(f.placeholder)) ||
     ((f.type === "tel" || f.type === "number") && /郵便|〒/.test(f.label))],
   ["tel", (f) => (f.type === "tel" && !ADDRESSY.test(f.label + f.name + f.placeholder)) || /tel|phone/i.test(f.name)],
   ["lastKana", (f) => /^(セイ|せい)$/.test(f.placeholder) || /(kana|ruby|furi).*(1|sei|last)|(1|sei|last).*(kana|ruby|furi)/i.test(f.name)],
