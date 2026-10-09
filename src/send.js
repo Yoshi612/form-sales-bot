@@ -88,7 +88,8 @@ async function findButton(frame) {
     'form:has(textarea) button, form:has(textarea) input[type=submit], form:has(textarea) input[type=image], form:has(textarea) [role=button], button[type=submit], input[type=submit], button, input[type=button]'
   );
   for (const h of handles) {
-    const label = await h.evaluate((el) => (el.innerText || el.value || el.alt || el.getAttribute("aria-label") || "").trim()).catch(() => "");
+    // 「送 信」のように字間を空けたボタンもあるので、空白を除いて判定する
+    const label = await h.evaluate((el) => (el.innerText || el.value || el.alt || el.getAttribute("aria-label") || "").replace(/\s+/g, "")).catch(() => "");
     const visible = await h.isVisible().catch(() => false);
     const enabled = await h.isEnabled().catch(() => false);
     if (visible && enabled && SEND_BUTTON.test(label) && !NOT_SEND.test(label)) return { handle: h, label };

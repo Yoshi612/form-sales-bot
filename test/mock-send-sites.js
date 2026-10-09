@@ -6,7 +6,7 @@ const form = (action, extra = "") => `<h1>お問い合わせ</h1><form method="p
   <tr><th>お名前</th><td><input name="name" required></td></tr>
   <tr><th>メールアドレス</th><td><input type="email" name="email" required></td></tr>
   <tr><th>お問い合わせ内容</th><td><textarea name="body" required></textarea></td></tr>
-  ${extra}</table><button type="submit">確認画面へ</button></form>`;
+  ${extra}</table><button type="submit">確 認 画 面 へ</button></form>`;
 const received = {};
 const readBody = (req) => new Promise((r) => { let b = ""; req.on("data", (c) => (b += c)); req.on("end", () => r(b)); });
 
