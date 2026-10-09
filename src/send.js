@@ -47,7 +47,8 @@ const picked = list.rows.filter((r) => nos.has(String(r.no)));
 const targets = [];
 for (const row of picked) {
   const why =
-    row.salesOk !== "利用可" ? `営業利用可否が「${row.salesOk || "空欄"}」（担当者がフォームを確認して「利用可」にした会社だけ送ります）`
+    row.saRegistered ? `SA登録が「${row.saRegistered}」（すでに登録済みの会社には送りません）`
+    : row.salesOk !== "利用可" ? `営業利用可否が「${row.salesOk || "空欄"}」（担当者がフォームを確認して「利用可」にした会社だけ送ります）`
     : row.sendStatus && row.sendStatus !== "未送信" ? `送信ステータスが「${row.sendStatus}」`
     : !row.contactUrl ? "問い合わせURLが空欄"
     : !approvedFilled(list, row.no) ? "入力内容の確認記録がない（先に自動チェックを実行してください）"

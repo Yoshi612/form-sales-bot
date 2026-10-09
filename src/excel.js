@@ -11,6 +11,7 @@ const COLS = {
   salesOk: "営業利用可否",
   sendStatus: "送信ステータス",
   contactDate: "接触日",
+  saRegistered: "SA登録",
   note: "備考",
 };
 
@@ -55,6 +56,7 @@ export async function loadList(path) {
       contactUrl: get("contactUrl"),
       sendStatus: get("sendStatus"),
       salesOk: get("salesOk"),
+      saRegistered: get("saRegistered"),
     });
   });
   return { wb, ws, header, rows };

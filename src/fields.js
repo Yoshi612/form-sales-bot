@@ -48,6 +48,17 @@ export async function extractFields(frame) {
       }
       return "";
     };
+    // 「必須」バッジが入力欄と別のセルにある表（あそう自動車商会型）も必須とみなす
+    const rowSaysRequired = (el) => {
+      const tr = el.closest("tr");
+      if (tr) return /必須/.test(tr.innerText);
+      let anc = el.parentElement;
+      for (let i = 0; i < 5 && anc && anc !== root; i++) {
+        if (anc.querySelectorAll("input:not([type=hidden]), select, textarea").length > 1) break;
+        anc = anc.parentElement;
+      }
+      return false;
+    };
     const els = [...root.querySelectorAll("input, textarea, select")].filter((el) => {
       if (el.tagName === "INPUT" && /^(hidden|submit|button|image|reset|file|search)$/i.test(el.type)) return false;
       return el.type === "radio" || el.type === "checkbox" ? true : visible(el);
@@ -69,7 +80,7 @@ export async function extractFields(frame) {
         placeholder: el.placeholder || "",
         label,
         optionLabel: own,
-        required: el.required || el.getAttribute("aria-required") === "true" || /必須|\*|※/.test(label),
+        required: el.required || el.getAttribute("aria-required") === "true" || /必須|\*|※/.test(label) || rowSaysRequired(el),
         options: el.tagName === "SELECT" ? [...el.options].map((o) => clean(o.text)) : [],
       };
     });
