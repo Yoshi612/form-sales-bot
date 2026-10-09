@@ -41,7 +41,8 @@ export async function detectCaptcha(page) {
   if (imageAuth) return "画像認証（手入力が必要）";
   const quiz = await page
     .evaluate(() =>
-      [...document.querySelectorAll("input[name*=quiz], input[name*=captcha]")].length > 0 ||
+      // 目に見える入力欄だけを見る（reCAPTCHA が使う hidden の欄は対象外）
+      [...document.querySelectorAll('input[name*=quiz]:not([type=hidden]), input[name*=captcha]:not([type=hidden]):not([name*=recaptcha])')].length > 0 ||
       /\d\s*[+＋\-－×]\s*\d\s*(は|=|＝)/.test(document.body?.innerText || "")
     )
     .catch(() => false);
