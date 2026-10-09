@@ -63,6 +63,7 @@ export async function extractFields(frame) {
 }
 
 const RULES = [
+  ["ignore", (f) => /画像認証|認証コード|認証文字|captcha|spam-?block|画像内の文字/i.test(f.label + f.name + f.placeholder)],
   ["agree", (f) => f.type === "checkbox" && /同意|プライバシー|個人情報|privacy|agree/i.test(f.label + f.optionLabel + f.name)],
   ["inquiryType", (f) => (f.tag === "select" || f.type === "radio" || f.type === "checkbox") && /種別|種類|項目|内容|区分|用件|type|category|subject/i.test(f.label + f.name)],
   ["emailConfirm", (f) => /確認|再入力|confirm|again|re_?mail|mail2|email2/i.test(f.label + f.name + f.placeholder) && /mail|メール/i.test(f.label + f.name + f.type)],

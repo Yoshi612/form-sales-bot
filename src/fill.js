@@ -89,8 +89,8 @@ export async function fillForm(frame, fields, classes, row, config) {
         continue;
       }
       if (f.tag === "select") {
-        if (!(f.required || category === "inquiryType" || category === "pref")) continue;
-        const i = category === "pref" ? f.options.findIndex((o) => o.includes(s.pref)) : pickOption(f.options);
+        if (!(f.required || category === "inquiryType" || (category === "pref" && s.pref))) continue;
+        const i = category === "pref" ? (s.pref ? f.options.findIndex((o) => o.includes(s.pref)) : -1) : pickOption(f.options);
         if (i == null || i < 0) continue;
         await loc.selectOption({ index: i }, { timeout: 3000 });
         filled.push(`${f.label || f.name}=${f.options[i]}`);

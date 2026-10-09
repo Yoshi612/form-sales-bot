@@ -29,6 +29,10 @@ export async function detectCaptcha(page) {
     .evaluate(() => !!document.querySelector(".g-recaptcha, .h-captcha, .cf-turnstile, [data-sitekey]"))
     .catch(() => false);
   if (inPage) return "あり";
+  const imageAuth = await page
+    .evaluate(() => /画像認証|認証コード|画像内の文字|表示されている文字/.test(document.body?.innerText || ""))
+    .catch(() => false);
+  if (imageAuth) return "画像認証（手入力が必要）";
   const v3 = await page.evaluate(() => !!document.querySelector('script[src*="recaptcha/api.js?render="]')).catch(() => false);
   if (v3) return "reCAPTCHA v3(不可視)";
   return null;
