@@ -2,8 +2,13 @@
 
 const toHiragana = (s) => s.replace(/[ァ-ヶ]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0x60));
 
-function render(tpl, row) {
+function render(tpl, row, s) {
   return tpl
+    .replaceAll("{{自分の名前}}", `${s.lastName}${s.firstName}`)
+    .replaceAll("{{自社名}}", s.company)
+    .replaceAll("{{部署}}", s.department)
+    .replaceAll("{{電話}}", s.tel)
+    .replaceAll("{{メール}}", s.email)
     .replaceAll("{{企業名}}", row.company)
     .replaceAll("{{確認できた事業}}", row.business || "事業")
     .replaceAll("{{営業切り口}}", row.angle || "ご提案");
@@ -47,8 +52,8 @@ export async function fillForm(frame, fields, classes, row, config) {
     pref: s.pref,
     address: s.address,
     url: s.url,
-    subject: render(config.subject, row),
-    message: render(config.message, row),
+    subject: render(config.subject, row, s),
+    message: render(config.message, row, s),
   };
 
   const byIdx = new Map(fields.map((f) => [f.idx, f]));
@@ -57,6 +62,7 @@ export async function fillForm(frame, fields, classes, row, config) {
   const seen = {};
   const filled = [];
   const handledGroups = new Set();
+  const overLength = [];
 
   for (const { idx, category } of classes) {
     const f = byIdx.get(idx);
@@ -94,6 +100,11 @@ export async function fillForm(frame, fields, classes, row, config) {
       if ((category === "kana" || category === "lastKana" || category === "firstKana") && /ふりがな|ひらがな/.test(f.label + f.placeholder)) {
         v = toHiragana(v);
       }
+      const maxLen = await loc.getAttribute("maxlength");
+      if (maxLen && Number(maxLen) > 0 && v.length > Number(maxLen)) {
+        overLength.push(`${f.label || f.name || category}（上限${maxLen}字、文面${v.length}字）`);
+        v = v.slice(0, Number(maxLen));
+      }
       await loc.fill(v, { timeout: 3000 });
       filled.push(`${f.label || f.name || f.placeholder || category}`);
     } catch {
@@ -113,5 +124,5 @@ export async function fillForm(frame, fields, classes, row, config) {
       })
       .map((el) => el.name || el.id || el.placeholder)
   );
-  return { filled, missingRequired: [...new Set(missingRequired)] };
+  return { filled, missingRequired: [...new Set(missingRequired)], overLength };
 }
