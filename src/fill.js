@@ -69,6 +69,11 @@ function splitValue(category, value, idxs, pos) {
   const parts = value.split(/[-ー－]/);
   const adjacent = Math.max(...idxs) - Math.min(...idxs) <= idxs.length;
   if ((category === "tel" || category === "zip") && parts.length === idxs.length && adjacent) return parts[pos] ?? "";
+  // 住所欄が2つ（市区町村／番地以降）なら、最初の数字の手前で分ける
+  if (category === "address" && idxs.length === 2) {
+    const m = value.match(/^(\D+?)(\d.*)$/);
+    return m ? [m[1], m[2]][pos] : pos === 0 ? value : "";
+  }
   return pos === 0 ? value : "";
 }
 
@@ -90,11 +95,23 @@ export async function fillForm(frame, fields, classes, row, config) {
     zip: s.zip,
     pref: s.pref,
     address: s.address,
+    building: "",
     url: s.url,
     subject: render(config.subject, row, s),
     message: render(config.message, row, s),
   };
   const shortMessage = config.messageShort ? render(config.messageShort, row, s) : null;
+  {
+    const cats = new Set(classes.map((c) => c.category));
+    const [street, ...rest] = s.address.split(/\s+/);
+    let addr = s.address;
+    if (cats.has("building") && rest.length) {
+      addr = street;
+      values.building = rest.join(" ");
+    }
+    if (cats.has("pref") && s.pref && addr.startsWith(s.pref)) addr = addr.slice(s.pref.length);
+    values.address = addr;
+  }
 
   const byIdx = new Map(fields.map((f) => [f.idx, f]));
   const idxsOf = {};
@@ -102,6 +119,7 @@ export async function fillForm(frame, fields, classes, row, config) {
   const seen = {};
   const filled = [];
   const handledGroups = new Set();
+  const tickedIdx = [];
   const overLength = [];
   let usedShort = false;
 
@@ -125,11 +143,13 @@ export async function fillForm(frame, fields, classes, row, config) {
         const i = isContactMethod ? labels.findIndex((o) => /メール|e-?mail/i.test(o)) : pickOption(labels);
         if (i == null) continue;
         await setChecked(frame.locator(`[data-fsb="${group[i].idx}"]`));
+        tickedIdx.push(group[i].idx);
         filled.push(`${fieldName(f)}：${group[i].optionLabel}`);
         continue;
       }
       if (category === "agree") {
         await setChecked(loc);
+        tickedIdx.push(idx);
         filled.push(`${f.optionLabel || f.label || "同意"}：チェック`);
         continue;
       }
@@ -175,6 +195,17 @@ export async function fillForm(frame, fields, classes, row, config) {
     }
   }
 
+  // 選んだはずのチェック・ラジオが画面の仕組みで外れていないか確かめ、外れていれば押し直す
+  await new Promise((r) => setTimeout(r, 800));
+  const notStuck = [];
+  for (const idx of tickedIdx) {
+    const loc = frame.locator(`[data-fsb="${idx}"]`);
+    if (await loc.isChecked().catch(() => true)) continue;
+    await loc.evaluate((el) => (el.closest("label") || el.parentElement).click()).catch(() => {});
+    await new Promise((r) => setTimeout(r, 600));
+    if (!(await loc.isChecked().catch(() => true))) notStuck.push(byIdx.get(idx)?.optionLabel || byIdx.get(idx)?.label || String(idx));
+  }
+
   // 必須なのに空のまま残った欄
   const missingRequired = await frame.evaluate(() =>
     [...document.querySelectorAll("[data-fsb]")]
@@ -187,5 +218,5 @@ export async function fillForm(frame, fields, classes, row, config) {
       })
       .map((el) => el.name || el.id || el.placeholder)
   );
-  return { filled, missingRequired: [...new Set(missingRequired)], overLength, usedShort };
+  return { filled, missingRequired: [...new Set([...missingRequired, ...notStuck.map((l) => `選択できず:${l}`)])], overLength, usedShort };
 }

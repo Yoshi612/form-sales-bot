@@ -7,7 +7,7 @@ export const CATEGORIES = [
   "company", "department", "position",
   "name", "lastName", "firstName",
   "kana", "lastKana", "firstKana",
-  "email", "emailConfirm", "tel", "zip", "pref", "address", "url",
+  "email", "emailConfirm", "tel", "zip", "pref", "address", "building", "url",
   "subject", "message", "inquiryType", "agree", "ignore",
 ];
 
@@ -108,7 +108,8 @@ const RULES = [
   ["zip", (f) => /郵便|〒|zip|postal|post_?code/i.test(f.label + f.name + f.placeholder)],
   ["tel", (f) => f.type === "tel" || /電話|tel|phone/i.test(f.label + f.name + f.placeholder)],
   ["pref", (f) => /都道府県|pref/i.test(f.label + f.name)],
-  ["address", (f) => /住所|所在地|address|addr/i.test(f.label + f.name + f.placeholder)],
+  ["building", (f) => /建物|マンション|ビル名|部屋番号|address2|address-2|building/i.test(f.label + f.name) && !/番地/.test(f.label)],
+  ["address", (f) => /住所|所在地|市区町村|番地|address|addr/i.test(f.label + f.name + f.placeholder)],
   ["url", (f) => f.type === "url" || /url|ホームページ|ウェブサイト|website/i.test(f.label + f.name)],
   ["lastName", (f) => /^姓|姓$|（姓）|\(姓\)/.test(f.label + f.placeholder) || /last_?name|family|sei$|name_?1|name1/i.test(f.name)],
   ["firstName", (f) => /^名$|（名）|\(名\)/.test(f.label + f.placeholder) || /first_?name|given|mei$|name_?2|name2/i.test(f.name)],
@@ -142,7 +143,8 @@ const STRONG = [
   ["lastName", (f) => /^姓$/.test(f.placeholder) || /last[_-]?name|family[_-]?name|^sei$|name_?1$|name\[?(sei|last)/i.test(f.name)],
   ["firstName", (f) => /^名$/.test(f.placeholder) || /first[_-]?name|given[_-]?name|^mei$|name_?2$|name\[?(mei|first)/i.test(f.name)],
   ["name", (f) => /^(your-?)?name$|full_?name|^namae$|contact_?name|onamae/i.test(f.name)],
-  ["address", (f) => /address|addr|jusho/i.test(f.name)],
+  ["building", (f) => /building|address2|address-2|addr2|tatemono/i.test(f.name)],
+  ["address", (f) => /address|addr|jusho|city|street|banchi/i.test(f.name)],
 ];
 
 export function classifyByRules(fields) {
