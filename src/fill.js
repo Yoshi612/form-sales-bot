@@ -220,16 +220,20 @@ export async function fillForm(frame, fields, classes, row, config) {
   }
 
   // 必須なのに空のまま残った欄
-  const missingRequired = await frame.evaluate(() =>
+  // HTML の required 属性だけでなく、見出しの「必須」などで必須と読み取った文字欄も含める
+  // （何の欄か分からず入力しなかった必須欄を見落とさないため）
+  const requiredIdx = fields.filter((f) => f.required && f.type !== "radio" && f.type !== "checkbox").map((f) => String(f.idx));
+  const missingRequired = await frame.evaluate((requiredIdx) =>
     [...document.querySelectorAll("[data-fsb]")]
-      .filter((el) => el.required || el.getAttribute("aria-required") === "true")
+      .filter((el) => el.required || el.getAttribute("aria-required") === "true" || requiredIdx.includes(el.getAttribute("data-fsb")))
       .filter((el) => {
         if (el.type === "radio" || el.type === "checkbox") {
           return !document.querySelector(`[name="${CSS.escape(el.name)}"]:checked`);
         }
         return !el.value;
       })
-      .map((el) => el.name || el.id || el.placeholder)
+      .map((el) => el.name || el.id || el.placeholder),
+    requiredIdx
   );
   return { filled, missingRequired: [...new Set([...missingRequired, ...notStuck.map((l) => `選択できず:${l}`)])], overLength, usedShort };
 }

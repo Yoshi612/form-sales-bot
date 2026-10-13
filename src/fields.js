@@ -19,7 +19,18 @@ export async function extractFields(frame) {
     const visible = (el) => {
       const r = el.getBoundingClientRect();
       const cs = getComputedStyle(el);
-      return r.width > 2 && r.height > 2 && cs.visibility !== "hidden" && cs.display !== "none" && Number(cs.opacity) > 0.05 && r.right > 0 && r.left > -1000;
+      if (!(r.width > 2 && r.height > 2 && cs.visibility !== "hidden" && cs.display !== "none" && Number(cs.opacity) > 0.05 && r.right > 0 && r.left > -1000)) return false;
+      // キーボードで移動できず自動入力も切ってある文字欄は、罠の典型
+      if (el.tagName === "INPUT" && el.tabIndex === -1 && /^off$/i.test(el.getAttribute("autocomplete") || "")) return false;
+      // 外側の囲みを透明・非表示にして隠している罠もあるため、親の要素まで含めて見えるかを確かめる
+      if (el.checkVisibility && !el.checkVisibility({ opacityProperty: true, visibilityProperty: true })) return false;
+      for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) {
+        const ac = getComputedStyle(a);
+        if (Number(ac.opacity) <= 0.05) return false;
+        const ar = a.getBoundingClientRect();
+        if ((ac.overflow === "hidden" || ac.overflow === "clip") && (ar.width < 2 || ar.height < 2)) return false;
+      }
+      return true;
     };
     const ta = [...document.querySelectorAll("textarea")].find(visible);
     const root = ta?.closest("form") || document;
@@ -130,7 +141,7 @@ const RULES = [
 // まず name 属性・type・placeholder だけで判定し、決まらないときにラベルを使う
 const ADDRESSY = /住所|郵便|〒|fax|ファックス|ＦＡＸ/i;
 const STRONG = [
-  ["ignore", (f) => /captcha|quiz|spam|token|honeypot/i.test(f.name)],
+  ["ignore", (f) => /captcha|quiz|spam|token|honeypot|hp_field|hpot|_hp$|^hp_|trap/i.test(f.name)],
   ["ignore", (f) => /fax/i.test(f.name) || /fax|ファックス|ＦＡＸ/i.test(f.label + f.placeholder)],
   ["pref", (f) => f.tag === "select" && f.options.includes("東京都") && f.options.includes("大阪府")],
   ["agree", (f) => f.type === "checkbox" && /agree|accept|privacy|consent|doui/i.test(f.name)],
@@ -152,7 +163,7 @@ const STRONG = [
   ["company", (f) => /company|corp|kaisha|organization|会社/i.test(f.name)],
   ["lastName", (f) => /^姓$/.test(f.placeholder) || /last[_-]?name|family[_-]?name|^sei$|name_?1$|name\[?(sei|last)/i.test(f.name)],
   ["firstName", (f) => /^名$/.test(f.placeholder) || /first[_-]?name|given[_-]?name|^mei$|name_?2$|name\[?(mei|first)/i.test(f.name)],
-  ["name", (f) => /^(your-?)?name$|full_?name|^namae$|contact_?name|onamae/i.test(f.name)],
+  ["name", (f) => /^((your|user|customer|client|sender|inquiry)[-_]?)?name$|full_?name|^namae$|contact_?name|onamae/i.test(f.name)],
   ["building", (f) => /building|address2|address-2|addr2|tatemono/i.test(f.name)],
   ["address", (f) => /address|addr|jusho|city|street|banchi/i.test(f.name)],
 ];

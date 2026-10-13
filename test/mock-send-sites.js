@@ -6,7 +6,7 @@ const form = (action, extra = "") => `<h1>お問い合わせ</h1><form method="p
   <tr><th>お名前</th><td><input name="name" required></td></tr>
   <tr><th>メールアドレス</th><td><input type="email" name="email" required></td></tr>
   <tr><th>お問い合わせ内容</th><td><textarea name="body" required></textarea></td></tr>
-  ${extra}</table><input type="text" name="trap" tabindex="-1" autocomplete="off" style="height:0;width:0;padding:0;margin:0;border:none;overflow:hidden"><button type="submit">確 認 画 面 へ</button></form>`;
+  ${extra}</table><input type="text" name="contact_sub" style="height:0;width:0;padding:0;margin:0;border:none;overflow:hidden"><span style="opacity:0;position:absolute"><input type="text" name="extra_info" tabindex="-1" autocomplete="off"></span><button type="submit">確 認 画 面 へ</button></form>`;
 const received = {};
 const readBody = (req) => new Promise((r) => { let b = ""; req.on("data", (c) => (b += c)); req.on("end", () => r(b)); });
 
@@ -18,7 +18,7 @@ const sites = {
     if (p === "/confirm") {
       const b = await readBody(req);
       // 見えない罠の欄（ハニーポット）に何か入っていたら、機械の送信として拒否する
-      if (/(^|&)trap=[^&]/.test(b)) return page(`<p>送信に失敗しました。</p>`);
+      if (/(^|&)(contact_sub|extra_info)=[^&]/.test(b)) return page(`<p>送信に失敗しました。</p>`);
       return page(`<p>以下の内容でよろしければ送信してください。</p><pre>${decodeURIComponent(b).slice(0, 80)}</pre>
         <form method="post" action="/thanks"><input type="hidden" name="d" value="1"><button type="button" onclick="history.back()">戻る</button><button type="submit">送信する</button></form>`);
     }
