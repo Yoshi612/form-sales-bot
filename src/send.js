@@ -73,7 +73,7 @@ const normalize = (text) =>
 // 完了の表示。「ありがとうございます」だけは確認画面にも出るので、送信ボタンが残っていないときだけ完了とみなす
 const STRONG_DONE = /送信(が)?完了|送信(いた)?しました|送信されました|受け付けました|受付(を)?完了|承りました/;
 const WEAK_DONE = /ありがとうございま|thank\s*you|thanks/i;
-const FAILED = /送信に失敗|エラーが発生|入力してください|入力されていません|必須項目です|正しく入力|形式が正しくありません|確認してください/;
+const FAILED = /送信(が)?できませんでした|送信に失敗|エラーが発生|入力してください|入力されていません|必須項目です|正しく入力|形式が正しくありません|確認してください/;
 const SEND_BUTTON = /送信|確認|次へ|submit|send|confirm|next/i;
 const NOT_SEND = /戻る|修正|リセット|クリア|取り消|キャンセル|back|reset|clear|cancel|検索|search/i;
 
@@ -95,6 +95,12 @@ async function findButton(frame) {
     // 「お問合せ」だけのボタンは、問い合わせフォームの中にあるときだけ送信ボタンとみなす
     const inquiryButton = /^お問い?合わ?せ(する|を送信)?$/.test(label) && (await h.evaluate((el) => !!el.closest("form")?.querySelector("textarea")).catch(() => false));
     if (visible && enabled && (SEND_BUTTON.test(label) || inquiryButton) && !NOT_SEND.test(label)) return { handle: h, label };
+  }
+  // 文字のない画像ボタンなど: 問い合わせフォームに送信用のボタンが1つしかなければ、それを使う
+  const only = await frame.$$('form:has(textarea) input[type=submit], form:has(textarea) input[type=image], form:has(textarea) button[type=submit], form:has(textarea) button:not([type])');
+  if (only.length === 1 && (await only[0].isVisible().catch(() => false)) && (await only[0].isEnabled().catch(() => false))) {
+    const label = await only[0].evaluate((el) => (el.innerText || el.value || el.alt || "").replace(/\s+/g, "")).catch(() => "");
+    if (!NOT_SEND.test(label)) return { handle: only[0], label: label || "（文字のないボタン）" };
   }
   return null;
 }

@@ -46,7 +46,7 @@ const sites = {
   4108: async (req, p) => {
     if (p === "/company/") return page(`<a href="/contact/">お問い合わせ</a>`);
     if (p === "/contact/") return page(`<h1>お問い合わせ</h1><p>お問い合わせありがとうございます。下記にご記入ください。</p><iframe src="/embed" style="width:800px;height:600px"></iframe>`);
-    if (p === "/embed") return page(form("/embed/confirm"));
+    if (p === "/embed") return page(form("/embed/confirm").replace(/<button type="submit">[^<]*<\/button>/, '<input type="image" name="" src="/btn.gif">'));
     if (p === "/embed/confirm") return page(`<p>入力内容をご確認ください。</p><form method="post" action="/embed/thanks"><textarea style="display:none">${"確認用に残された本文。".repeat(10)}</textarea><button type="submit" formaction="/embed">戻る</button><button type="submit">送信する</button></form>`);
     if (p === "/embed/thanks") { received[4108] = (received[4108] ?? 0) + 1; return page(`<p>送信が完了しました。</p>`); }
   },
