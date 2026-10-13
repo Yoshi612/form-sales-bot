@@ -1,4 +1,4 @@
-// 送信テスト用の架空サイト（ポート 4104〜4107）。受け付けた送信の回数を /count で返す
+// 送信テスト用の架空サイト（ポート 4104〜4112）。受け付けた送信の回数を /count で返す
 import http from "node:http";
 
 const page = (body) => `<!doctype html><html lang="ja"><meta charset="utf-8"><body>${body}</body></html>`;
@@ -63,6 +63,14 @@ const sites = {
     if (p === "/contact/") return page(form("/confirm"));
     if (p === "/confirm") return page(`<p>以下の内容でよろしければ送信してください。</p><button type="button" onclick="fetch('/press',{method:'POST'})">上記の内容で送信します&gt;&gt;</button>`);
     if (p === "/press") { received["4111press"] = (received["4111press"] ?? 0) + 1; return "ok"; }
+  },
+  // Contact Form 7 のフォームだが、送信窓口（wp-json）が 403 を返す（XSERVER の国外IP制限型）。ボタンを押さないこと
+  4112: async (req, p) => {
+    if (p === "/company/") return page(`<a href="/contact/">お問い合わせ</a>`);
+    if (p.startsWith("/wp-json/")) return "__403__";
+    if (p === "/contact/") return page(`<h1>お問い合わせ</h1><form id="f" class="wpcf7-form"><input type="hidden" name="_wpcf7" value="12"><input name="name" required><input type="email" name="email" required><textarea name="body" required></textarea><input type="submit" value="送信"></form>
+      <script>document.getElementById("f").addEventListener("submit", async (e) => { e.preventDefault(); await fetch("/press", {method:"POST"}); });</script>`);
+    if (p === "/press") { received[4112] = (received[4112] ?? 0) + 1; return "ok"; }
   },
   // 送信すると 403 を返す（バンガード型）。送信されていない
   4109: async (req, p) => {

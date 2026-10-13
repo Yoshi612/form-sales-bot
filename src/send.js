@@ -73,7 +73,7 @@ const normalize = (text) =>
 // 完了の表示。「ありがとうございます」だけは確認画面にも出るので、送信ボタンが残っていないときだけ完了とみなす
 const STRONG_DONE = /送信(が)?完了|送信(いた)?しました|送信されました|受け付けました|受付(を)?完了|承りました/;
 const WEAK_DONE = /ありがとうございま|thank\s*you|thanks/i;
-const FAILED = /送信(が)?できませんでした|送信に失敗|エラーが発生|入力してください|入力されていません|必須項目です|正しく入力|形式が正しくありません|確認してください/;
+const FAILED = /送信(が)?できませんでした|送信に失敗|エラーが発生|入力してください|必須項目を入力|入力されていません|必須項目です|正しく入力|形式が正しくありません|確認してください/;
 const SEND_BUTTON = /送信|確認|次へ|submit|send|confirm|next/i;
 const NOT_SEND = /戻る|修正|リセット|クリア|取り消|キャンセル|back|reset|clear|cancel|検索|search/i;
 
@@ -145,6 +145,18 @@ for (const [i, row] of targets.entries()) {
     if (captcha && !/不可視/.test(captcha)) {
       Object.assign(res, { result: "送らず（手動送信へ）", detail: `認証あり: ${captcha}`, note: `認証（${captcha}）があるため手動で送信してください` });
       throw Object.assign(new Error(res.result), { recorded: true });
+    }
+
+    // Contact Form 7 の送信窓口（wp-json）が海外からの通信を拒否するサーバー（XSERVER の国外IPアクセス制限など）では、
+    // ボタンを押しても届かず結果不明になるため、押さずに手動へ回す
+    const cf7 = await frame.evaluate(() => document.querySelector("form input[name=_wpcf7]")?.value).catch(() => null);
+    if (cf7) {
+      const api = new URL(`/wp-json/contact-form-7/v1/contact-forms/${cf7}/feedback/schema`, frame.url()).href;
+      const status = await page.request.get(api, { timeout: 20000 }).then((r) => r.status()).catch(() => 0);
+      if (status === 403) {
+        Object.assign(res, { result: "送らず（手動送信へ）", detail: "フォームの送信窓口が海外からの通信を拒否（403）", note: "相手サーバーが海外からの送信を受け付けない設定のため、自動では送れません。手動で送信してください" });
+        throw Object.assign(new Error(res.result), { recorded: true });
+      }
     }
 
     // 2. 入力して、担当者が確認したときと同じ内容か照合
