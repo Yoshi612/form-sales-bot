@@ -14,7 +14,13 @@ export const CATEGORIES = [
 /** フォーム内の入力欄を列挙し、data-fsb 属性で番号を振る */
 export async function extractFields(frame) {
   return frame.evaluate(() => {
-    const visible = (el) => !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+    // 人が実際に見て入力できる欄だけを対象にする。幅や高さが0・透明・画面外の欄は、
+    // 機械による送信を見分けるための罠（ハニーポット）のことがあり、入力すると送信をはじかれる
+    const visible = (el) => {
+      const r = el.getBoundingClientRect();
+      const cs = getComputedStyle(el);
+      return r.width > 2 && r.height > 2 && cs.visibility !== "hidden" && cs.display !== "none" && Number(cs.opacity) > 0.05 && r.right > 0 && r.left > -1000;
+    };
     const ta = [...document.querySelectorAll("textarea")].find(visible);
     const root = ta?.closest("form") || document;
     const clean = (s) => (s || "").replace(/[\u200B-\u200D\uFEFF]/g, "").replace(/\s+/g, " ").trim().slice(0, 60);

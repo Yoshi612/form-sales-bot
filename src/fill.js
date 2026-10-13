@@ -188,7 +188,7 @@ export async function fillForm(frame, fields, classes, row, config) {
       }
       const maxLen = await loc.getAttribute("maxlength");
       // 「ハイフンなし」指定や桁数制限のある電話・郵便番号欄は、ハイフンを除いて入れる
-      if ((category === "tel" || category === "zip") && (/ハイフン(なし|無し|不要)|ハイフンを?入れず/.test(f.label + f.placeholder) || /^\d+$/.test(f.placeholder) || (maxLen && v.length > Number(maxLen)))) {
+      if ((category === "tel" || category === "zip") && (/ハイフン[(（]?[-ー－‐]?[)）]?(なし|無し|不要)|ハイフンを?入れず/.test(f.label + f.placeholder) || /^\d+$/.test(f.placeholder) || (maxLen && v.length > Number(maxLen)))) {
         v = v.replace(/[-ー－]/g, "");
       }
       // 本文が上限を超えるときは短縮版を使い、それでも超えるなら切り詰める
