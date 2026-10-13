@@ -73,7 +73,7 @@ const normalize = (text) =>
 // 完了の表示。「ありがとうございます」だけは確認画面にも出るので、送信ボタンが残っていないときだけ完了とみなす
 const STRONG_DONE = /送信(が)?完了|送信(いた)?しました|送信されました|受け付けました|受付(を)?完了|承りました/;
 const WEAK_DONE = /ありがとうございま|thank\s*you|thanks/i;
-const FAILED = /送信(が)?できませんでした|送信に失敗|エラーが発生|入力してください|必須項目を入力|入力されていません|必須項目です|正しく入力|形式が正しくありません|確認してください/;
+const FAILED = /送信(が)?できませんでした|送信に失敗|エラーが発生|入力してください|必須項目を入力|最大\s*\d+\s*文字|\d+\s*文字(以内|まで)で|入力されていません|必須項目です|正しく入力|形式が正しくありません|確認してください/;
 const SEND_BUTTON = /送信|確認|次へ|submit|send|confirm|next/i;
 const NOT_SEND = /戻る|修正|リセット|クリア|取り消|キャンセル|back|reset|clear|cancel|検索|search/i;
 
@@ -105,6 +105,21 @@ async function findButton(frame) {
   return null;
 }
 
+// 押す前に見えていたボタンに印を付けておき、押したあとに新しく現れた「送信」ボタン（確認の小窓など）を探す
+async function markVisibleButtons(page) {
+  for (const f of page.frames())
+    await f.evaluate(() => document.querySelectorAll("button, input[type=submit], input[type=button], input[type=image], [role=button]").forEach((el) => el.getClientRects().length && el.setAttribute("data-fsb-seen", "1"))).catch(() => {});
+}
+async function findNewSendButton(page) {
+  for (const f of page.frames()) {
+    for (const h of await f.$$("button:not([data-fsb-seen]), input[type=submit]:not([data-fsb-seen]), input[type=button]:not([data-fsb-seen]), input[type=image]:not([data-fsb-seen]), [role=button]:not([data-fsb-seen])")) {
+      const label = await h.evaluate((el) => (el.innerText || el.value || el.alt || el.getAttribute("aria-label") || "").replace(/\s+/g, "")).catch(() => "");
+      if ((await h.isVisible().catch(() => false)) && (await h.isEnabled().catch(() => false)) && /送信|send/i.test(label) && !NOT_SEND.test(label)) return { handle: h, label };
+    }
+  }
+  return null;
+}
+
 async function clickAndWait(page, handle) {
   await handle.scrollIntoViewIfNeeded({ timeout: 3000 }).catch(() => {});
   const nav = page.waitForNavigation({ timeout: 15000 }).catch(() => {});
@@ -129,6 +144,9 @@ for (const [i, row] of targets.entries()) {
   const label = `[${i + 1}/${targets.length}] No.${row.no} ${row.company}`;
   const base = path.join(shotDir, `${String(row.no).padStart(2, "0")}_${row.company.replace(/[\\/:*?"<>|（）() ]/g, "")}`);
   const page = await context.newPage();
+  // 「送信しますか？」などの確認ダイアログは OK を押す（担当者が承認した送信のため）。何もしないとキャンセル扱いになる
+  const dialogs = [];
+  page.on("dialog", (d) => { dialogs.push(d.message().slice(0, 60)); d.accept().catch(() => {}); });
   const res = { result: "", detail: "" };
   const clicked = []; // 押したボタン（1つでも押したあとのエラーは「結果不明」にする）
   try {
@@ -191,12 +209,15 @@ for (const [i, row] of targets.entries()) {
     let done = null;
     const messageStillThere = async () =>
       (await Promise.all(page.frames().map((f) => f.evaluate(() => [...document.querySelectorAll("textarea")].some((t) => t.value.length > 50 && t.getClientRects().length > 0 && getComputedStyle(t).visibility !== "hidden")).catch(() => false)))).some(Boolean);
+    let forcedNext = null; // 確認の小窓に新しく現れた送信ボタン
     for (let step = 0; step < 3 && !done; step++) {
-      let target = await findButton(frame).catch(() => null);
+      let target = forcedNext ?? (await findButton(frame).catch(() => null));
+      forcedNext = null;
       for (const f of page.frames()) target ??= await findButton(f).catch(() => null);
       if (!target) break;
       const urlBefore = page.url();
       clicked.push(target.label);
+      await markVisibleButtons(page);
       await clickAndWait(page, target.handle);
       const text = await pageText(page);
       const fresh = text.split("\n").filter((l) => l.trim() && !textBefore.includes(l.trim())).join("\n");
@@ -218,7 +239,18 @@ for (const [i, row] of targets.entries()) {
       if (text === prevText) break;
       prevText = text;
       // 画面が変わらず入力も残っているなら、同じボタンをもう一度押さない（二重送信の防止）
-      if (page.url() === urlBefore && (await messageStillThere()) && !FAILED.test(fresh)) break;
+      // ブラウザの入力チェック（書式・必須）で止まっていれば、送信されていない
+      const invalid = (await Promise.all(page.frames().map((f) => f.evaluate(() => [...document.querySelectorAll("[data-fsb]")].filter((el) => el.getClientRects().length && el.willValidate && !el.checkValidity()).map((el) => `${el.name}: ${el.validationMessage}`.slice(0, 60))).catch(() => [])))).flat();
+      if (invalid.length) {
+        Object.assign(res, { result: "送信できず（手動送信へ）", detail: `押したボタン: ${clicked.join(" → ")} ／ 入力チェックで停止: ${invalid.join(" / ")}`, note: "ブラウザの入力チェックで止まり、送信されていません。手動で送信してください" });
+        break;
+      }
+      // 画面が変わらず入力も残っているときは、同じボタンを押し直さない（二重送信の防止）。
+      // ただし、同じページ上に確認の小窓が開き、前と違う送信ボタンが現れた場合はそれを押す
+      if (page.url() === urlBefore && (await messageStillThere()) && !FAILED.test(fresh)) {
+        forcedNext = await findNewSendButton(page);
+        if (!forcedNext) break;
+      }
       if (FAILED.test(fresh)) {
         Object.assign(res, { result: "送信できず（手動送信へ）", detail: `押したボタン: ${clicked.join(" → ")} ／ 画面の表示: ${fresh.match(FAILED)[0]}`, note: "入力エラーで送信できませんでした。手動で送信してください" });
         break;
@@ -226,6 +258,7 @@ for (const [i, row] of targets.entries()) {
     }
     await page.screenshot({ path: `${base}_送信後.png`, fullPage: true }).catch(() => {});
     res.afterShot = path.relative(path.dirname(outPath), `${base}_送信後.png`);
+    if (dialogs.length) res.detail = `${res.detail ? res.detail + " ／ " : ""}ダイアログ: ${dialogs.join(" / ")}`;
 
     if (done) {
       Object.assign(res, { result: "送信完了", detail: `押したボタン: ${clicked.join(" → ")} ／ 完了表示:「${done}」`, sendStatus: "送信済み", contactDate: today, note: `${today} フォームから送信（完了画面を確認）` });

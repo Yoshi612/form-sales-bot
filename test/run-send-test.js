@@ -11,8 +11,9 @@ fs.mkdirSync(dir, { recursive: true });
 // テスト用リスト: No.1〜7 を架空サイトだけに向ける（実在の会社のURLは使わない）
 //   1 確認画面あり / 2 同一ページ送信 / 3 入力エラー / 4 確認画面に「ありがとう」 / 5 埋め込みフォーム / 6 403 / 7 確認画面に認証
 //   8 確認画面の送信ボタンが反応しない（1回しか押さないこと） / 9 送信窓口が海外からの通信を拒否（押さないこと）
-// No.10 は「利用可」にせず、送信対象に指定しても送られない（サイトにもアクセスしない）ことを確かめる
-const PORTS = [4104, 4105, 4106, 4107, 4108, 4109, 4110, 4111, 4112];
+//   10 確認の小窓 / 11 フリガナがカタカナのみの書式 / 12 「送信しますか？」の確認ダイアログ
+// No.13 は「利用可」にせず、送信対象に指定しても送られない（サイトにもアクセスしない）ことを確かめる
+const PORTS = [4104, 4105, 4106, 4107, 4108, 4109, 4110, 4111, 4112, 4113, 4114, 4115];
 const wb = new ExcelJS.Workbook();
 await wb.xlsx.readFile("test/test-list.xlsx");
 const ws = wb.worksheets[0];
@@ -22,11 +23,16 @@ PORTS.forEach((port, i) => {
 });
 await wb.xlsx.writeFile(`${dir}/list.xlsx`);
 
+// テスト用の設定: 架空サイトが12あるので、1回の送信上限だけ広げる（本番の設定は変えない）
+const cfg = JSON.parse(fs.readFileSync("config.example.json", "utf8"));
+cfg.settings = { ...cfg.settings, maxSendPerRun: 20 };
+fs.writeFileSync(`${dir}/config.json`, JSON.stringify(cfg));
+
 const mock = spawn("node", ["test/mock-send-sites.js"], { stdio: "inherit" });
 await new Promise((r) => setTimeout(r, 800));
 const run = (args) => spawnSync("node", args, { stdio: "inherit", env: { ...process.env, NO_PROXY: "localhost", no_proxy: "localhost" } });
 
-run(["src/index.js", "--input", `${dir}/list.xlsx`, "--output", `${dir}/checked.xlsx`, "--only", "1,2,3,4,5,6,7,8,9", "--config", "config.example.json"]);
+run(["src/index.js", "--input", `${dir}/list.xlsx`, "--output", `${dir}/checked.xlsx`, "--only", "1,2,3,4,5,6,7,8,9,10,11,12", "--config", `${dir}/config.json`]);
 
 // 担当者が画面を確認して No.1〜8 を「利用可」にした想定
 const checked = new ExcelJS.Workbook();
@@ -34,10 +40,10 @@ await checked.xlsx.readFile(`${dir}/checked.xlsx`);
 PORTS.forEach((_, i) => (checked.worksheets[0].getCell(i + 2, 10).value = "利用可"));
 await checked.xlsx.writeFile(`${dir}/approved.xlsx`);
 
-run(["src/send.js", "--input", `${dir}/approved.xlsx`, "--output", `${dir}/sent.xlsx`, "--only", "1,2,3,4,5,6,7,8,9,10", "--config", "config.example.json"]);
+run(["src/send.js", "--input", `${dir}/approved.xlsx`, "--output", `${dir}/sent.xlsx`, "--only", "1,2,3,4,5,6,7,8,9,10,11,12,13", "--config", `${dir}/config.json`]);
 
 // 2回目: 送信済みの会社は送られないこと
-run(["src/send.js", "--input", `${dir}/sent.xlsx`, "--output", `${dir}/sent2.xlsx`, "--only", "1,2", "--config", "config.example.json"]);
+run(["src/send.js", "--input", `${dir}/sent.xlsx`, "--output", `${dir}/sent2.xlsx`, "--only", "1,2", "--config", `${dir}/config.json`]);
 
 const counts = {};
 for (const port of PORTS) counts[port] = Number(await (await fetch(`http://localhost:${port}/count`)).text());
@@ -46,11 +52,11 @@ mock.kill();
 
 const out = new ExcelJS.Workbook();
 await out.xlsx.readFile(`${dir}/sent.xlsx`);
-const status = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((r) => `No.${r - 1}: ${out.worksheets[0].getCell(r, 11).value} / ${out.worksheets[0].getCell(r, 12).value ?? ""}`);
+const status = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14].map((r) => `No.${r - 1}: ${out.worksheets[0].getCell(r, 11).value} / ${out.worksheets[0].getCell(r, 12).value ?? ""}`);
 console.log("\n送信ステータス:", status);
 console.log("サイトが受け付けた送信の回数:", counts);
 
-const expect = { 4104: 1, 4105: 1, 4106: 0, 4107: 1, 4108: 1, 4109: 0, 4110: 0, 4111: 0, 4112: 0 };
+const expect = { 4104: 1, 4105: 1, 4106: 0, 4107: 1, 4108: 1, 4109: 0, 4110: 0, 4111: 0, 4112: 0, 4113: 1, 4114: 1, 4115: 1 };
 console.log("反応しない送信ボタンを押した回数:", presses);
 const ok = Object.entries(expect).every(([p, n]) => counts[p] === n) && presses === 1;
 console.log(ok ? "\nOK: 送信回数が期待どおり（二重送信なし）" : "\nNG: 送信回数が期待と違う");

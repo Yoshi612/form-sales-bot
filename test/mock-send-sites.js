@@ -1,4 +1,4 @@
-// 送信テスト用の架空サイト（ポート 4104〜4112）。受け付けた送信の回数を /count で返す
+// 送信テスト用の架空サイト（ポート 4104〜4115）。受け付けた送信の回数を /count で返す
 import http from "node:http";
 
 const page = (body) => `<!doctype html><html lang="ja"><meta charset="utf-8"><body>${body}</body></html>`;
@@ -73,6 +73,32 @@ const sites = {
     if (p === "/contact/") return page(`<h1>お問い合わせ</h1><form id="f" class="wpcf7-form"><input type="hidden" name="_wpcf7" value="12"><input name="name" required><input type="email" name="email" required><textarea name="body" required></textarea><input type="submit" value="送信"></form>
       <script>document.getElementById("f").addEventListener("submit", async (e) => { e.preventDefault(); await fetch("/press", {method:"POST"}); });</script>`);
     if (p === "/press") { received[4112] = (received[4112] ?? 0) + 1; return "ok"; }
+  },
+  // 確認画面が同じページ上の小窓で開き、小窓の「送信する」で送る（カーアシスト吉田型）
+  4113: async (req, p) => {
+    if (p === "/company/") return page(`<a href="/contact/">お問い合わせ</a>`);
+    if (p === "/api") { received[4113] = (received[4113] ?? 0) + 1; return "ok"; }
+    if (p === "/contact/") return page(`<h1>お問い合わせ</h1><form id="f"><input name="name" required><input type="email" name="email" required><textarea name="body" required></textarea><button type="button" id="c">確認画面へ</button></form>
+      <div id="m" style="display:none;position:fixed;top:20px;left:20px;background:#fff;border:1px solid #000;padding:20px"><p>入力内容をご確認ください</p><button type="button" id="s">送信する</button><button type="button" onclick="this.parentNode.style.display='none'">キャンセル</button></div><div id="out"></div>
+      <script>document.getElementById("c").onclick = () => { document.getElementById("m").style.display = "block"; };
+      document.getElementById("s").onclick = async () => { await fetch("/api", {method:"POST"}); document.getElementById("m").remove(); document.getElementById("f").remove(); document.getElementById("out").textContent = "送信が完了しました。"; };</script>`);
+  },
+  // フリガナ欄が「カタカナのみ（スペース不可）」の書式指定（カセル型）
+  4114: async (req, p) => {
+    if (p === "/company/") return page(`<a href="/contact/">お問い合わせ</a>`);
+    if (p === "/contact/") return page(form("/thanks", `<tr><th>フリガナ</th><td><input name="kana" pattern="[ァ-ヶー]+" required title="カタカナで入力してください"></td></tr>`));
+    if (p === "/thanks") {
+      const b = decodeURIComponent((await readBody(req)).replace(/\+/g, " "));
+      if (!/(^|&)kana=[ァ-ヶー]+(&|$)/.test(b)) return page(`<p>フリガナはカタカナで入力してください</p>`);
+      received[4114] = (received[4114] ?? 0) + 1; return page(`<p>送信が完了しました。</p>`);
+    }
+  },
+  // 送信ボタンを押すと「送信しますか？」の確認ダイアログが出る（クリックセレクト型）
+  4115: async (req, p) => {
+    if (p === "/company/") return page(`<a href="/contact/">お問い合わせ</a>`);
+    if (p === "/api") { received[4115] = (received[4115] ?? 0) + 1; return "ok"; }
+    if (p === "/contact/") return page(`<h1>お問い合わせ</h1><form id="f"><input name="name" required><input type="email" name="email" required><textarea name="body" required></textarea><button type="submit">メールを送信する</button></form><div id="out"></div>
+      <script>document.getElementById("f").addEventListener("submit", async (e) => { e.preventDefault(); if (!confirm("送信しますか？")) return; await fetch("/api", {method:"POST"}); e.target.remove(); document.getElementById("out").textContent = "お問い合わせを受け付けました。"; });</script>`);
   },
   // 送信すると 403 を返す（バンガード型）。送信されていない
   4109: async (req, p) => {

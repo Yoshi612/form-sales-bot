@@ -201,6 +201,15 @@ export async function fillForm(frame, fields, classes, row, config) {
         v = v.slice(0, Number(maxLen));
       }
       await setValue(loc, v);
+      // 「カタカナのみ」「数字のみ」などの書式（pattern）に合わなければ、合う形に入れ直す
+      if (category !== "message" && (await loc.evaluate((el) => !!el.validity?.patternMismatch).catch(() => false))) {
+        const variants = [v.replace(/[\s　]/g, ""), v.replace(/　/g, " "), v.replace(/[-ー－‐]/g, ""), v.replace(/[\s　-ー－‐]/g, "")];
+        for (const alt of variants) {
+          if (alt === v) continue;
+          await setValue(loc, alt);
+          if (!(await loc.evaluate((el) => !!el.validity?.patternMismatch).catch(() => true))) { v = alt; break; }
+        }
+      }
       const shown = category === "message" ? `（本文${usedShort && v === shortMessage ? "・短縮版" : ""} ${v.length}字）` : v;
       filled.push(`${fieldName(f) || category}：${shown}`);
     } catch {
