@@ -110,8 +110,10 @@ async function clickAndWait(page, handle) {
   const nav = page.waitForNavigation({ timeout: 15000 }).catch(() => {});
   try {
     await handle.click({ timeout: 8000 });
-  } catch {
-    // 一瞬ほかの要素に隠れて押せないときは、同じボタンを直接押す
+  } catch (e) {
+    // ほかの要素に隠れて押せなかったときだけ、同じボタンを直接押す。
+    // 押したあとの画面遷移で待ちきれなかっただけの場合に押し直すと二重送信になるため、それ以外は押し直さない
+    if (!/intercepts pointer events|not visible|outside of the viewport|not stable/i.test(e.message)) throw e;
     await handle.evaluate((el) => el.click());
   }
   await nav;
@@ -128,6 +130,7 @@ for (const [i, row] of targets.entries()) {
   const base = path.join(shotDir, `${String(row.no).padStart(2, "0")}_${row.company.replace(/[\\/:*?"<>|（）() ]/g, "")}`);
   const page = await context.newPage();
   const res = { result: "", detail: "" };
+  const clicked = []; // 押したボタン（1つでも押したあとのエラーは「結果不明」にする）
   try {
     await page.goto(row.contactUrl, { waitUntil: "domcontentloaded", timeout: 20000 });
     await page.waitForLoadState("networkidle", { timeout: 8000 }).catch(() => {});
@@ -151,10 +154,18 @@ for (const [i, row] of targets.entries()) {
     // ボタンを押しても届かず結果不明になるため、押さずに手動へ回す
     const cf7 = await frame.evaluate(() => document.querySelector("form input[name=_wpcf7]")?.value).catch(() => null);
     if (cf7) {
-      const api = new URL(`/wp-json/contact-form-7/v1/contact-forms/${cf7}/feedback/schema`, frame.url()).href;
-      const status = await page.request.get(api, { timeout: 20000 }).then((r) => r.status()).catch(() => 0);
-      if (status === 403) {
-        Object.assign(res, { result: "送らず（手動送信へ）", detail: "フォームの送信窓口が海外からの通信を拒否（403）", note: "相手サーバーが海外からの送信を受け付けない設定のため、自動では送れません。手動で送信してください" });
+      // ブラウザと同じ経路（プロキシ経由）で確かめるため、ページの中から問い合わせる
+      const status = await frame
+        .evaluate(async (id) => {
+          const ctrl = new AbortController();
+          setTimeout(() => ctrl.abort(), 20000);
+          return (await fetch(`/wp-json/contact-form-7/v1/contact-forms/${id}/feedback/schema`, { signal: ctrl.signal })).status;
+        }, cf7)
+        .catch(() => 0);
+      // 拒否（403）や、確かめられなかったとき（通信エラー）は押さない
+      if (status === 403 || status === 0) {
+        const why = status === 403 ? "フォームの送信窓口が海外からの通信を拒否（403）" : "フォームの送信窓口に届くか確かめられなかった";
+        Object.assign(res, { result: "送らず（手動送信へ）", detail: why, note: `${why}ため、自動では送れません。手動で送信してください` });
         throw Object.assign(new Error(res.result), { recorded: true });
       }
     }
@@ -190,7 +201,6 @@ for (const [i, row] of targets.entries()) {
     const textBefore = await pageText(page);
     let prevText = textBefore;
     let done = null;
-    let clicked = [];
     const messageStillThere = async () =>
       (await Promise.all(page.frames().map((f) => f.evaluate(() => [...document.querySelectorAll("textarea")].some((t) => t.value.length > 50 && t.getClientRects().length > 0 && getComputedStyle(t).visibility !== "hidden")).catch(() => false)))).some(Boolean);
     for (let step = 0; step < 3 && !done; step++) {
@@ -236,7 +246,12 @@ for (const [i, row] of targets.entries()) {
       Object.assign(res, { result: "結果不明", detail: `押したボタン: ${clicked.join(" → ") || "なし"} ／ 完了表示を確認できず`, sendStatus: clicked.length ? "送信結果不明" : undefined, contactDate: clicked.length ? today : undefined, note: clicked.length ? "完了画面を確認できませんでした。自動では再送しません。手動で状況を確認してください" : "送信ボタンが見つかりませんでした。手動で送信してください" });
     }
   } catch (e) {
-    if (!e.recorded) Object.assign(res, { result: "エラー（送らず）", detail: e.message.split("\n")[0], note: `送信処理でエラー（${e.message.split("\n")[0]}）。手動で確認してください` });
+    const msg = e.message.split("\n")[0];
+    if (!e.recorded && clicked.length) {
+      // ボタンを押したあとのエラーは、届いたかどうか分からない。二重送信を避けるため再送しない
+      await page.screenshot({ path: `${base}_送信後.png`, fullPage: true }).catch(() => {});
+      Object.assign(res, { result: "結果不明", detail: `押したボタン: ${clicked.join(" → ")} ／ その後エラー: ${msg}`, sendStatus: "送信結果不明", contactDate: today, afterShot: path.relative(path.dirname(outPath), `${base}_送信後.png`), note: `ボタンを押したあとにエラー（${msg}）。届いたか分からないため自動では再送しません。手動で状況を確認してください` });
+    } else if (!e.recorded) Object.assign(res, { result: "エラー（送らず）", detail: msg, note: `送信処理でエラー（${msg}）。手動で確認してください` });
   } finally {
     await page.close();
   }
