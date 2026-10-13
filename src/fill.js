@@ -47,13 +47,17 @@ function render(tpl, row, s) {
 }
 
 // 選択肢は上から順に優先する。どれにも当たらないときは選ばない（必須なら空きとして記録される）
-const PREFERRED_OPTIONS = [/いいえ|該当しない/, /営業|ご提案|提案|業務提携|協業|お取引|取引|法人|ビジネス/, /その他|other/i, /一般|お問い?合わ?せ/];
+const PREFERRED_OPTIONS = [/いいえ|該当しない/, /(?<!自)営業|ご提案|提案|業務提携|協業|お取引|取引|法人|ビジネス/, /その他|other/i, /一般|お問い?合わ?せ/];
 const BAD_OPTION =
   /^(--|ー|－|please|select)|選択して|お選び|採用|求人|購入|査定|買取|買い取り|見積|売却|車検|整備|修理|保険|ローン|レンタ|在庫|予約|試乗|来店|部品|パーツ|メンテ|コーティング|板金|鈑金/i;
 
-function pickOption(options) {
+// 「ご職業」の欄は会社員（なければ会社役員）を選ぶ
+const OCCUPATION = /職業|occupation|job/i;
+const OCCUPATION_OPTIONS = [/会社員|社員/, /会社役員|役員|経営/];
+
+function pickOption(options, label = "") {
   const usable = options.map((o, i) => ({ o, i })).filter(({ o }) => o && !BAD_OPTION.test(o));
-  for (const re of PREFERRED_OPTIONS) {
+  for (const re of OCCUPATION.test(label) ? [...OCCUPATION_OPTIONS, ...PREFERRED_OPTIONS] : PREFERRED_OPTIONS) {
     const hit = usable.find(({ o }) => re.test(o));
     if (hit) return hit.i;
   }
@@ -144,7 +148,7 @@ export async function fillForm(frame, fields, classes, row, config) {
         const hasOther = labels.some((o) => /その他|other/i.test(o));
         if (!(f.required || category === "inquiryType" || isContactMethod || hasOther)) continue;
         handledGroups.add(key);
-        const i = isContactMethod ? labels.findIndex((o) => /メール|e-?mail/i.test(o)) : pickOption(labels);
+        const i = isContactMethod ? labels.findIndex((o) => /メール|e-?mail/i.test(o)) : pickOption(labels, f.label + " " + f.name);
         if (i == null) continue;
         await setChecked(frame.locator(`[data-fsb="${group[i].idx}"]`));
         tickedIdx.push(group[i].idx);
@@ -160,7 +164,7 @@ export async function fillForm(frame, fields, classes, row, config) {
       if (f.tag === "select") {
         const selectHasOther = f.options.some((o) => /その他|other/i.test(o)) && !/車種|メーカー|model|car/i.test(f.label + f.name);
         if (!(f.required || category === "inquiryType" || selectHasOther || (category === "pref" && s.pref))) continue;
-        let i = category === "pref" ? (s.pref ? f.options.findIndex((o) => o.includes(s.pref)) : -1) : pickOption(f.options);
+        let i = category === "pref" ? (s.pref ? f.options.findIndex((o) => o.includes(s.pref)) : -1) : pickOption(f.options, f.label + " " + f.name);
         // 必須の「店舗選択」は本店（なければ最初の店舗）を選ぶ
         if (i == null && f.required && /店舗|店|拠点|store|shop/i.test(f.label + f.name)) {
           const usable = f.options.map((o, k) => ({ o, k })).filter(({ o }) => o && !/選択|お選び|^-+$|please|select/i.test(o));
