@@ -57,6 +57,13 @@ const sites = {
     if (p === "/confirm") return page(`<p>入力内容をご確認ください。</p><form method="post" action="/thanks"><div class="g-recaptcha" data-sitekey="x">私はロボットではありません</div><button type="submit" disabled>送信する</button></form>`);
     if (p === "/thanks") { received[4110] = (received[4110] ?? 0) + 1; return page(`<p>送信が完了しました。</p>`); }
   },
+  // 確認画面の送信ボタンを押しても何も起きない（神奈川中古車型）。押すのは1回だけであること
+  4111: async (req, p) => {
+    if (p === "/company/") return page(`<a href="/contact/">お問い合わせ</a>`);
+    if (p === "/contact/") return page(form("/confirm"));
+    if (p === "/confirm") return page(`<p>以下の内容でよろしければ送信してください。</p><button type="button" onclick="fetch('/press',{method:'POST'})">上記の内容で送信します&gt;&gt;</button>`);
+    if (p === "/press") { received["4111press"] = (received["4111press"] ?? 0) + 1; return "ok"; }
+  },
   // 送信すると 403 を返す（バンガード型）。送信されていない
   4109: async (req, p) => {
     if (p === "/company/") return page(`<a href="/contact/">お問い合わせ</a>`);
@@ -69,6 +76,7 @@ for (const [port, handler] of Object.entries(sites)) {
   http.createServer(async (req, res) => {
     const p = req.url.split("?")[0];
     if (p === "/count") return res.end(JSON.stringify(received[port] ?? 0));
+    if (p === "/presscount") return res.end(JSON.stringify(received[port + "press"] ?? 0));
     const html = await handler(req, p === "/" ? "/company/" : p);
     if (html === "__403__") return res.writeHead(403, { "content-type": "text/html" }).end("<h1>403 Forbidden</h1><hr>nginx");
     res.writeHead(html ? 200 : 404, { "content-type": "text/html; charset=utf-8" }).end(html ?? "not found");

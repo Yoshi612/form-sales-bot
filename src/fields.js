@@ -85,6 +85,8 @@ export async function extractFields(frame) {
         id: el.id || "",
         placeholder: el.placeholder || "",
         label,
+        // 入力欄のすぐ手前に書かれた小見出し（「ふりがな」「番地」など）
+        near: clean([el.previousSibling?.textContent, el.previousElementSibling?.innerText].filter(Boolean).join(" ")).slice(-20),
         optionLabel: own,
         required: el.required || el.getAttribute("aria-required") === "true" || /必須|\*|※/.test(label) || rowSaysRequired(el),
         options: el.tagName === "SELECT" ? [...el.options].map((o) => clean(o.text)) : [],

@@ -86,7 +86,8 @@ export async function fillForm(frame, fields, classes, row, config) {
     name: `${s.lastName} ${s.firstName}`,
     lastName: s.lastName,
     firstName: s.firstName,
-    kana: `${s.lastNameKana} ${s.firstNameKana}`,
+    // 全角カナ・ひらがな指定のフォームで弾かれないよう、間は全角スペースにする
+    kana: `${s.lastNameKana}　${s.firstNameKana}`,
     lastKana: s.lastNameKana,
     firstKana: s.firstNameKana,
     email: s.email,
@@ -101,6 +102,9 @@ export async function fillForm(frame, fields, classes, row, config) {
     message: render(config.message, row, s),
   };
   const shortMessage = config.messageShort ? render(config.messageShort, row, s) : null;
+  const formText = await frame
+    .evaluate(() => (document.querySelector("textarea")?.closest("form") || document.body).innerText)
+    .catch(() => "");
   {
     const cats = new Set(classes.map((c) => c.category));
     const [street, ...rest] = s.address.split(/\s+/);
@@ -170,7 +174,12 @@ export async function fillForm(frame, fields, classes, row, config) {
       if (category === "ignore" || category === "inquiryType") continue;
       let v = splitValue(category, values[category] ?? "", idxsOf[category], pos);
       if (!v) continue;
-      if ((category === "kana" || category === "lastKana" || category === "firstKana") && (/ふりがな|ひらがな/.test(f.label) || /^[\u3041-\u3096\u30fc\s　（）()例：:]+$/.test(f.placeholder.replace(/[a-z]/gi, "")) && /[\u3041-\u3096]/.test(f.placeholder))) {
+      const hint = `${f.label} ${f.near || ""} ${f.placeholder}`;
+      const wantsHiragana =
+        /ふりがな|ひらがな/.test(`${f.label} ${f.near || ""}`) ||
+        (/^[\u3041-\u3096\u30fc\s　（）()例：:]+$/.test(f.placeholder.replace(/[a-z]/gi, "")) && /[\u3041-\u3096]/.test(f.placeholder)) ||
+        (!/カナ|フリガナ/.test(hint) && /ひらがなで|全角ひらがな|ふりがな/.test(formText));
+      if ((category === "kana" || category === "lastKana" || category === "firstKana") && wantsHiragana) {
         v = toHiragana(v);
       }
       const maxLen = await loc.getAttribute("maxlength");

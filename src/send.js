@@ -92,7 +92,9 @@ async function findButton(frame) {
     const label = await h.evaluate((el) => (el.innerText || el.value || el.alt || el.getAttribute("aria-label") || "").replace(/\s+/g, "")).catch(() => "");
     const visible = await h.isVisible().catch(() => false);
     const enabled = await h.isEnabled().catch(() => false);
-    if (visible && enabled && SEND_BUTTON.test(label) && !NOT_SEND.test(label)) return { handle: h, label };
+    // 「お問合せ」だけのボタンは、問い合わせフォームの中にあるときだけ送信ボタンとみなす
+    const inquiryButton = /^お問い?合わ?せ(する|を送信)?$/.test(label) && (await h.evaluate((el) => !!el.closest("form")?.querySelector("textarea")).catch(() => false));
+    if (visible && enabled && (SEND_BUTTON.test(label) || inquiryButton) && !NOT_SEND.test(label)) return { handle: h, label };
   }
   return null;
 }
@@ -168,6 +170,7 @@ for (const [i, row] of targets.entries()) {
 
     // 3. 送信（確認画面があれば、確認画面の送信ボタンまで押す）
     const textBefore = await pageText(page);
+    let prevText = textBefore;
     let done = null;
     let clicked = [];
     const messageStillThere = async () =>
@@ -195,6 +198,9 @@ for (const [i, row] of targets.entries()) {
       for (const f of page.frames()) sendLeft ??= await findButton(f).catch(() => null);
       done = fresh.match(STRONG_DONE)?.[0] ?? (!sendLeft || !/送信|send|submit/i.test(sendLeft.label) ? fresh.match(WEAK_DONE)?.[0] : null) ?? null;
       if (done) break;
+      // 押す前と画面が変わっていなければ、同じボタンを押し直さない（二重送信の防止）
+      if (text === prevText) break;
+      prevText = text;
       // 画面が変わらず入力も残っているなら、同じボタンをもう一度押さない（二重送信の防止）
       if (page.url() === urlBefore && (await messageStillThere()) && !FAILED.test(fresh)) break;
       if (FAILED.test(fresh)) {
