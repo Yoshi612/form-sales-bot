@@ -8,7 +8,7 @@ import { parseArgs } from "node:util";
 import { chromium } from "playwright";
 import { loadList, writeResult, saveList } from "./excel.js";
 import { findContactPage } from "./findForm.js";
-import { detectNoSales, detectCaptcha } from "./checks.js";
+import { detectNoSales, detectCaptcha, cf7SendBlocked } from "./checks.js";
 import { extractFields, classifyByRules, classifyByClaude, claudeAvailable } from "./fields.js";
 import { fillForm } from "./fill.js";
 
@@ -94,10 +94,11 @@ for (const [i, row] of targets.entries()) {
         result.filled = filled;
         result.missingRequired = missingRequired;
         result.pageCheck = "確認済";
-        result.status = missingRequired.length ? "入力済（必須項目に空きあり）" : overLength.length ? "入力済（文字数オーバー）" : "入力済（送信待ち）";
+        const blocked = await cf7SendBlocked(found.frame);
+        result.status = blocked ? "入力済（自動送信不可）" : missingRequired.length ? "入力済（必須項目に空きあり）" : overLength.length ? "入力済（文字数オーバー）" : "入力済（送信待ち）";
         // 「利用可」は人が利用規約・ページを見て判断する。自動では付けない
         result.salesOk = "未確認";
-        result.noteAppend = ["営業お断りの記載は自動検出されず（送信前に目視確認）", result.captcha && `CAPTCHA: ${result.captcha}`, missingRequired.length && `未入力の必須: ${missingRequired.join(",")}`, usedShort && "本文は短縮版を使用", overLength.length && `文字数オーバーで切り詰め: ${overLength.join(",")}`].filter(Boolean).join(" / ");
+        result.noteAppend = ["営業お断りの記載は自動検出されず（送信前に目視確認）", blocked && `自動送信不可: ${blocked}`, result.captcha && `CAPTCHA: ${result.captcha}`, missingRequired.length && `未入力の必須: ${missingRequired.join(",")}`, usedShort && "本文は短縮版を使用", overLength.length && `文字数オーバーで切り詰め: ${overLength.join(",")}`].filter(Boolean).join(" / ");
       }
 
       const shot = path.join(shotDir, `${String(row.no).padStart(2, "0")}_${row.company.replace(/[\\/:*?"<>|（）() ]/g, "")}.png`);

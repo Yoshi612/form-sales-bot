@@ -51,3 +51,24 @@ export async function detectCaptcha(page) {
   if (v3) return "reCAPTCHA v3(不可視)";
   return null;
 }
+
+/**
+ * Contact Form 7 のフォームで、送信窓口（wp-json）に届くかを確かめる。
+ * XSERVER の国外IPアクセス制限などで海外からの通信が拒否されると、ボタンを押しても届かない。
+ * ブラウザと同じ経路（プロキシ経由）で確かめるため、ページの中から問い合わせる。
+ * @returns {Promise<string|null>} 送れない理由。CF7 でない・問題なしなら null
+ */
+export async function cf7SendBlocked(frame) {
+  const id = await frame.evaluate(() => document.querySelector("form input[name=_wpcf7]")?.value).catch(() => null);
+  if (!id) return null;
+  const status = await frame
+    .evaluate(async (id) => {
+      const ctrl = new AbortController();
+      setTimeout(() => ctrl.abort(), 20000);
+      return (await fetch(`/wp-json/contact-form-7/v1/contact-forms/${id}/feedback/schema`, { signal: ctrl.signal })).status;
+    }, id)
+    .catch(() => 0);
+  if (status === 403) return "フォームの送信窓口が海外からの通信を拒否（403）";
+  if (status === 0) return "フォームの送信窓口に届くか確かめられなかった";
+  return null;
+}

@@ -11,7 +11,7 @@ import { parseArgs } from "node:util";
 import { chromium } from "playwright";
 import { loadList, saveList, approvedFilled, writeSend } from "./excel.js";
 import { findContactFormFrame } from "./findForm.js";
-import { detectNoSales, detectCaptcha } from "./checks.js";
+import { detectNoSales, detectCaptcha, cf7SendBlocked } from "./checks.js";
 import { extractFields, classifyByRules } from "./fields.js";
 import { fillForm } from "./fill.js";
 
@@ -152,22 +152,10 @@ for (const [i, row] of targets.entries()) {
 
     // Contact Form 7 の送信窓口（wp-json）が海外からの通信を拒否するサーバー（XSERVER の国外IPアクセス制限など）では、
     // ボタンを押しても届かず結果不明になるため、押さずに手動へ回す
-    const cf7 = await frame.evaluate(() => document.querySelector("form input[name=_wpcf7]")?.value).catch(() => null);
-    if (cf7) {
-      // ブラウザと同じ経路（プロキシ経由）で確かめるため、ページの中から問い合わせる
-      const status = await frame
-        .evaluate(async (id) => {
-          const ctrl = new AbortController();
-          setTimeout(() => ctrl.abort(), 20000);
-          return (await fetch(`/wp-json/contact-form-7/v1/contact-forms/${id}/feedback/schema`, { signal: ctrl.signal })).status;
-        }, cf7)
-        .catch(() => 0);
-      // 拒否（403）や、確かめられなかったとき（通信エラー）は押さない
-      if (status === 403 || status === 0) {
-        const why = status === 403 ? "フォームの送信窓口が海外からの通信を拒否（403）" : "フォームの送信窓口に届くか確かめられなかった";
-        Object.assign(res, { result: "送らず（手動送信へ）", detail: why, note: `${why}ため、自動では送れません。手動で送信してください` });
-        throw Object.assign(new Error(res.result), { recorded: true });
-      }
+    const blocked = await cf7SendBlocked(frame);
+    if (blocked) {
+      Object.assign(res, { result: "送らず（手動送信へ）", detail: blocked, note: `${blocked}ため、自動では送れません。手動で送信してください` });
+      throw Object.assign(new Error(res.result), { recorded: true });
     }
 
     // 2. 入力して、担当者が確認したときと同じ内容か照合
