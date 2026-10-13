@@ -176,7 +176,7 @@ export async function fillForm(frame, fields, classes, row, config) {
       if (!v) continue;
       const hint = `${f.label} ${f.near || ""} ${f.placeholder}`;
       const wantsHiragana =
-        /ふりがな|ひらがな/.test(`${f.label} ${f.near || ""}`) ||
+        /ふりがな|ひらがな|よみがな|[（(]\s*かな\s*[)）]/.test(`${f.label} ${f.near || ""}`) ||
         (/^[\u3041-\u3096\u30fc\s　（）()例：:]+$/.test(f.placeholder.replace(/[a-z]/gi, "")) && /[\u3041-\u3096]/.test(f.placeholder)) ||
         (!/カナ|フリガナ/.test(hint) && /ひらがなで|全角ひらがな|ふりがな/.test(formText));
       if ((category === "kana" || category === "lastKana" || category === "firstKana") && wantsHiragana) {

@@ -49,7 +49,7 @@ export async function findContactFormFrame(page) {
         // 車両情報や予約日を入れさせるフォーム（買取査定・来店予約・レンタカー）は除外
         // 全体で4種類以上、または必須欄で2種類以上の車両・予約項目があれば除外する
         const form = tas[0].closest("form") || document.body;
-        const RE = /メーカー|車種|年式|走行距離|排気量|修復歴|グレード|ご利用予定|配車|来店希望|予約日|レンタカー|car_class|maker|mileage|nenshiki|rental/gi;
+        const RE = /メーカー|車種|年式|走行距離|排気量|修復歴|グレード|ご利用予定|配車|来店希望|予約日|希望日|希望時間|レンタカー|car_class|maker|mileage|nenshiki|rental|preferred[-_]?(?:date|time)/gi;
         const distinct = (text) => new Set((text.match(RE) || []).map((h) => h.toLowerCase())).size;
         const controls = [...form.querySelectorAll("input, select, textarea")];
         const all = form.innerText + " " + controls.map((el) => el.name).join(" ") + " " + document.title;
