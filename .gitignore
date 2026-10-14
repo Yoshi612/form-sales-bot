@@ -3,3 +3,6 @@ config.json
 output/
 test/out/
 test/out-send/
+*.csv
+tools/work/
+__pycache__/

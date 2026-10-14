@@ -1,0 +1,117 @@
+<title>%%TITLE%%</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: 1社1枚の確認カードを縦に並べる。左に「欄→入れた値」、右にフォームの実画面 */
+:root {
+  --paper: #f6f7f9;
+  --sheet: #ffffff;
+  --ink: #18212e;
+  --muted: #5d6878;
+  --rule: #dde2e9;
+  --accent: #1f5f8b;
+  --good: #1d7a4f;
+  --good-bg: #e3f3ea;
+  --warn: #9a5b00;
+  --warn-bg: #fbefd9;
+  --font-body: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #11161d; --sheet: #19202a; --ink: #e6eaf0; --muted: #9aa5b4; --rule: #2c3644;
+    --accent: #7db8e0; --good: #7fd3a6; --good-bg: #173327; --warn: #f0be6a; --warn-bg: #3a2c12;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #11161d; --sheet: #19202a; --ink: #e6eaf0; --muted: #9aa5b4; --rule: #2c3644;
+  --accent: #7db8e0; --good: #7fd3a6; --good-bg: #173327; --warn: #f0be6a; --warn-bg: #3a2c12;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--paper); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.7; padding: 0 16px; }
+.wrap { max-width: 1080px; margin: 0 auto; padding-block: 32px 64px; display: grid; gap: 28px; }
+h1 { font-size: 1.6rem; line-height: 1.3; margin: 0; text-wrap: balance; }
+.lead { margin: 6px 0 0; color: var(--muted); max-width: 65ch; }
+.summary { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.chip { font: inherit; font-size: 0.9rem; border: 1px solid var(--rule); background: var(--sheet); color: var(--ink); border-radius: 999px; padding: 6px 14px; cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--sheet); border-color: var(--ink); }
+.chip:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.chip b { font-family: var(--font-data); font-weight: 500; font-variant-numeric: tabular-nums; margin-left: 4px; }
+details.msg { background: var(--sheet); border: 1px solid var(--rule); border-radius: 8px; padding: 14px 18px; }
+details.msg summary { cursor: pointer; font-weight: 700; }
+.msgs { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 12px; }
+.msgs > div { min-width: 0; }
+.msgs h3 { font-size: 0.95rem; margin: 0 0 6px; }
+.msgs h3 span { font-family: var(--font-data); font-weight: 400; color: var(--muted); font-size: 0.85rem; margin-left: 6px; }
+.msgs pre { white-space: pre-wrap; word-break: break-word; margin: 0; font-family: var(--font-body); font-size: 0.86rem; line-height: 1.65; background: var(--paper); border-radius: 6px; padding: 12px 14px; max-height: 420px; overflow: auto; }
+.subject { margin: 4px 0 0; font-size: 0.9rem; }
+.subject b { font-weight: 500; }
+.cards { display: grid; gap: 18px; }
+.card { background: var(--sheet); border: 1px solid var(--rule); border-radius: 8px; padding: 18px 20px; display: grid; gap: 8px; min-width: 0; }
+.card header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
+.no { font-family: var(--font-data); color: var(--muted); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+.card h2 { font-size: 1.15rem; margin: 0; }
+.pill { margin-left: auto; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.04em; border-radius: 999px; padding: 2px 10px; }
+.pill.good { color: var(--good); background: var(--good-bg); }
+.pill.warn { color: var(--warn); background: var(--warn-bg); }
+.url { font-family: var(--font-data); font-size: 0.8rem; color: var(--accent); word-break: break-all; }
+.note { margin: 0; font-size: 0.85rem; color: var(--warn); }
+.soft { margin: 0; font-size: 0.82rem; color: var(--muted); }
+.body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 20px; align-items: start; margin-top: 4px; }
+@media (max-width: 760px) { .body { grid-template-columns: minmax(0, 1fr); } }
+.pairs { min-width: 0; overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 0.88rem; }
+caption { text-align: left; font-size: 0.78rem; letter-spacing: 0.06em; color: var(--muted); padding-bottom: 6px; }
+th, td { text-align: left; vertical-align: top; padding: 6px 8px; border-top: 1px solid var(--rule); }
+th { font-weight: 500; color: var(--muted); width: 45%; }
+td { word-break: break-word; }
+figure { margin: 0; min-width: 0; }
+figure img { display: block; width: 100%; height: auto; border: 1px solid var(--rule); border-radius: 6px; background: #fff; }
+.noshot { color: var(--muted); font-size: 0.85rem; margin: 0; }
+footer { color: var(--muted); font-size: 0.82rem; }
+</style>
+
+<div class="wrap">
+  <div>
+    <h1>%%HEADING%%</h1>
+    <p class="lead">追加で調査した会社のうち、業者マスタに登録がなく営業お断りの記載もなかった会社の、問い合わせフォームに入力した状態です。どこにも送信していません。左が「どの欄に何を入れたか」、右が入力後のフォームの実画面です。本文欄の画像は冒頭だけが写っています。</p>
+  </div>
+
+  <div class="summary" role="group" aria-label="表示する会社の絞り込み">
+    <button class="chip" type="button" id="f-all" data-filter="all" aria-pressed="true">すべて<b>%%N_ALL%%</b></button>
+    <button class="chip" type="button" id="f-ok" data-filter="ok" aria-pressed="false">そのまま送れそう<b>%%N_OK%%</b></button>
+    <button class="chip" type="button" id="f-manual" data-filter="manual" aria-pressed="false">手作業が必要<b>%%N_MANUAL%%</b></button>
+  </div>
+
+  <details class="msg">
+    <summary>本文に入れた文面を見る</summary>
+    <p class="subject">件名欄がある場合：<b>%%SUBJECT%%</b></p>
+    <div class="msgs">
+      <div><h3>通常版<span>%%LEN_FULL%%字</span></h3><pre>%%MSG_FULL%%</pre></div>
+      <div><h3>短縮版<span>%%LEN_SHORT%%字・本文欄に字数制限があるときに使用</span></h3><pre>%%MSG_SHORT%%</pre></div>
+    </div>
+  </details>
+
+  <div class="cards">
+%%CARDS%%
+  </div>
+
+  <footer>営業お断りの会社、フォームがない会社、メールアドレスのみの会社は載せていません。業者マスタに登録がある会社も載せていません。営業リストの「自動チェック詳細」「業者マスタ照合」シートに全社の記録があります。</footer>
+</div>
+
+<script>
+(() => {
+  const chips = document.querySelectorAll(".chip");
+  const cards = document.querySelectorAll(".card");
+  chips.forEach((chip) =>
+    chip.addEventListener("click", () => {
+      const f = chip.dataset.filter;
+      chips.forEach((c) => c.setAttribute("aria-pressed", String(c === chip)));
+      cards.forEach((card) => (card.hidden = f !== "all" && card.dataset.kind !== f));
+    })
+  );
+})();
+</script>
