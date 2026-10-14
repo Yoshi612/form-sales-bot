@@ -244,5 +244,12 @@ export async function fillForm(frame, fields, classes, row, config) {
       .map((el) => el.name || el.id || el.placeholder),
     requiredIdx
   );
-  return { filled, missingRequired: [...new Set([...missingRequired, ...notStuck.map((l) => `選択できず:${l}`)])], overLength, usedShort };
+  // 最後の安全確認: 本文・メールアドレス・（名前の欄があれば）名前が入っていなければ、送れる状態とはみなさない
+  // （チェックを入れた途端にフォームが作り直され、入力が消える場合などに備える）
+  const filledNow = await frame.evaluate(() => [...document.querySelectorAll("input, textarea")].filter((el) => el.getClientRects().length).map((el) => el.value)).catch(() => []);
+  const essentials = [];
+  if (!filledNow.some((v) => v.length > 100)) essentials.push("入力できず:本文");
+  if (!filledNow.includes(s.email)) essentials.push("入力できず:メールアドレス");
+  if (fields.some((f) => f.tag === "input" && f.type === "text" && /お名前|氏名|ご担当者/.test(f.label)) && !filledNow.some((v) => v.includes(s.lastName))) essentials.push("入力できず:お名前");
+  return { filled, missingRequired: [...new Set([...missingRequired, ...notStuck.map((l) => `選択できず:${l}`), ...essentials])], overLength, usedShort };
 }
