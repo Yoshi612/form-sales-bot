@@ -1,4 +1,4 @@
-// 送信テスト用の架空サイト（ポート 4104〜4115）。受け付けた送信の回数を /count で返す
+// 送信テスト用の架空サイト（ポート 4104〜4116）。受け付けた送信の回数を /count で返す
 import http from "node:http";
 
 const page = (body) => `<!doctype html><html lang="ja"><meta charset="utf-8"><body>${body}</body></html>`;
@@ -99,6 +99,13 @@ const sites = {
     if (p === "/api") { received[4115] = (received[4115] ?? 0) + 1; return "ok"; }
     if (p === "/contact/") return page(`<h1>お問い合わせ</h1><form id="f"><input name="name" required><input type="email" name="email" required><textarea name="body" required></textarea><button type="submit">メールを送信する</button></form><div id="out"></div>
       <script>document.getElementById("f").addEventListener("submit", async (e) => { e.preventDefault(); if (!confirm("送信しますか？")) return; await fetch("/api", {method:"POST"}); e.target.remove(); document.getElementById("out").textContent = "お問い合わせを受け付けました。"; });</script>`);
+  },
+  // 同じページで送信し、完了の表示を出さずにフォームを空に戻すだけ（YOLO WORLD 型）。空のフォームでもう一度押さないこと
+  4116: async (req, p) => {
+    if (p === "/company/") return page(`<a href="/contact/">お問い合わせ</a>`);
+    if (p === "/api") { received[4116] = (received[4116] ?? 0) + 1; return "ok"; }
+    if (p === "/contact/") return page(`<h1>お問い合わせ</h1><form id="f"><input name="name"><input type="email" name="email"><textarea name="body"></textarea><button type="submit">送信する</button></form><p id="st"></p>
+      <script>document.getElementById("f").addEventListener("submit", async (e) => { e.preventDefault(); await fetch("/api", {method:"POST"}); e.target.reset(); document.getElementById("st").textContent = "受付番号：A-12345"; });</script>`);
   },
   // 送信すると 403 を返す（バンガード型）。送信されていない
   4109: async (req, p) => {

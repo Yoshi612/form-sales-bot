@@ -237,6 +237,8 @@ for (const [i, row] of targets.entries()) {
       if (done) break;
       // 押す前と画面が変わっていなければ、同じボタンを押し直さない（二重送信の防止）
       if (text === prevText) break;
+      // 同じページのまま入力内容が消えた（送信後にフォームが空に戻る作り）なら、送信されたとみなして二度と押さない
+      if (page.url() === urlBefore && /送信|send/i.test(target.label) && !(await messageStillThere())) break;
       prevText = text;
       // 画面が変わらず入力も残っているなら、同じボタンをもう一度押さない（二重送信の防止）
       // ブラウザの入力チェック（書式・必須）で止まっていれば、送信されていない
